@@ -1,0 +1,8 @@
+[build]
+  publish = "."
+
+# Serve the game at the site root so the shared link is just the domain.
+[[redirects]]
+  from = "/"
+  to = "/birthday-game.html"
+  status = 200
