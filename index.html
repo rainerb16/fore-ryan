@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Fore Ryan!</title>
+</head>
+<body>
+
+<div id="stage">
+  <span class="decor d1">⛳</span>
+  <span class="decor d2">🎈</span>
+  <span class="decor d3">🏌️</span>
+  <span class="decor d4">🎈</span>
+
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="pregame">
+    <span class="pill" id="score">⛳ 0 / 5</span>
+    <span class="pill" id="lives">❤️❤️❤️</span>
+    <button id="muteBtn" type="button" aria-label="Toggle sound">🔇</button>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <canvas class="portrait idle" id="startPortrait" width="420" height="476"></canvas>
+    <p class="kicker">🎂 Happy Birthday 🎂</p>
+    <h1>Fore Ryan!</h1>
+    <p class="lead">Launch golf balls into 5 holes — dodge the trees and water!</p>
+    <button class="big" id="startBtn" type="button">Tee Off ⛳</button>
+    <p class="sub" id="startHint"></p>
+  </div>
+
+  <div class="overlay" id="winScreen" hidden>
+    <canvas class="portrait party" id="winPortrait" width="420" height="476"></canvas>
+    <h1>🎉 Happy Birthday Ryan! 🎉</h1>
+    <p>Five holes, one very determined floating head. ⛳</p>
+    <button class="big" id="winBtn" type="button">Play Again</button>
+    <p class="sub" id="winStats"></p>
+  </div>
+
+  <div class="overlay" id="loseScreen" hidden>
+    <canvas class="portrait dizzy" id="losePortrait" width="420" height="476"></canvas>
+    <h2>Shanked it! ⛳💥</h2>
+    <p>The hazards win this round. Take the drop and try again.</p>
+    <button class="big" id="loseBtn" type="button">Try Again</button>
+    <p class="sub" id="loseStats"></p>
+  </div>
+</div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
