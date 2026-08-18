@@ -3,3 +3,7 @@ Thumbs.db
 .netlify/
 node_modules/
 dist/
+
+# local Netlify env
+.env
+.netlify/

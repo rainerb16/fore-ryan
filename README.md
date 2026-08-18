@@ -46,7 +46,9 @@ npm run check      # all three
 | `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
 | `src/render/` | Canvas drawing: shapes, the scene, and the overlay portraits |
 | `src/ui/` | DOM refs, HUD, level banner, and screen transitions |
-| `test/` | Rule tests and the headless boot check |
+| `netlify/functions/` | The leaderboard API — token issue, submission, standings |
+| `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |
+| `test/` | Rule tests, API tests, and the headless boot check |
 | `public/assets/ryan-head-floating.png` | Head cutout (300×300, transparent background) |
 | `netlify.toml` | Netlify build and publish config |
 
@@ -98,6 +100,56 @@ more than grinding the early levels.
 
 The level you die on still pays for the holes you sank — progress counts — but none of the
 bonuses. Full rules and the numbers live in `shared/scoring.ts`.
+
+## Leaderboard backend
+
+Contest runs are submitted to Netlify Functions, which are the only thing that
+talks to Supabase. The database has Row Level Security on with no policies
+granted, so the anon key opens nothing and never ships to the browser.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/run-start` | Issues the token a run must present to be submitted |
+| `POST /api/submit-run` | Validates a finished run and stores it |
+| `GET /api/leaderboard` | Top standings, one best run per person |
+
+`supabase/schema.sql` creates the tables; run it once in the Supabase SQL editor.
+
+### What stops a fake score
+
+The client is assumed to be hostile. A submission carries per-level stats, and
+`submit-run` treats the score attached to it as a claim to be discarded:
+
+1. `validateRun()` recomputes the score from the stats and checks the stats
+   themselves — fire rate, holes per level, lives spent, totals that agree.
+2. The run token must exist, be unused, and be less than six hours old.
+3. Wall clock: a run claiming 90 seconds of play cannot be submitted 10 seconds
+   after its token was issued.
+4. Consuming the token is a conditional update, so two racing submissions cannot
+   both win — that is the replay check.
+5. Twenty submissions per person per hour.
+
+The stored score is always the server's recomputation. The client's claim is kept
+in `client_meta` so a suspicious run can be looked at rather than guessed about.
+
+### Environment variables
+
+Set these in Netlify under **Site configuration -> Environment variables**:
+
+| Variable | Where it comes from |
+| --- | --- |
+| `SUPABASE_URL` | Supabase -> Project Settings -> Data API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase -> Project Settings -> API Keys. Server only |
+| `EMAIL_HASH_SALT` | Any long random string you generate once |
+
+The service role key bypasses Row Level Security. It belongs only in Netlify's
+environment, never in the repo and never in client code.
+
+### Identity
+
+The leaderboard shows a display name. The work email is salted and hashed on the
+server, used only to keep one person from filling the top ten and to rate limit,
+and is never stored or displayed in the clear.
 
 ## Sound
 
