@@ -1,18 +1,28 @@
 import "./styles.css";
 import "./game/input";
 
-import { STATE } from "./game/config";
+import { MODE } from "./game/config";
 import { initImages } from "./game/images";
 import { startLoop } from "./game/loop";
-import { game } from "./game/state";
 import { redrawPortraits } from "./render/portraits";
-import { reset, resize } from "./game/world";
-import { loseBtn, startBtn, startHint, winBtn } from "./ui/dom";
-import { startGame } from "./ui/screens";
+import { resize } from "./game/world";
+import {
+  contestBtn,
+  loseBtn,
+  runAgainBtn,
+  runHomeBtn,
+  startBtn,
+  startHint,
+  winBtn,
+} from "./ui/dom";
+import { showStart, startGame } from "./ui/screens";
 
-startBtn.addEventListener("click", startGame);
-winBtn.addEventListener("click", startGame);
-loseBtn.addEventListener("click", startGame);
+startBtn.addEventListener("click", () => startGame(MODE.BIRTHDAY));
+winBtn.addEventListener("click", () => startGame(MODE.BIRTHDAY));
+loseBtn.addEventListener("click", () => startGame(MODE.BIRTHDAY));
+contestBtn.addEventListener("click", () => startGame(MODE.CONTEST));
+runAgainBtn.addEventListener("click", () => startGame(MODE.CONTEST));
+runHomeBtn.addEventListener("click", showStart);
 
 initImages(
   () => {
@@ -23,8 +33,7 @@ initImages(
 );
 
 resize();
-reset();
-game.state = STATE.START;
+showStart();
 redrawPortraits();
 startHint.textContent =
   "ontouchstart" in window

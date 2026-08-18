@@ -3,7 +3,7 @@ import { headAspect } from "./images";
 import { game, player } from "./state";
 
 // Head grows as holes are sunk.
-export const headRadius = (): number => game.baseHeadR * (1 + HEAD_GROW * game.score);
+export const headRadius = (): number => game.baseHeadR * (1 + HEAD_GROW * game.holes);
 export const headHalfH = (): number => headRadius() * headAspect;
 export const groundY = (): number => game.H - headHalfH() - 26;
 

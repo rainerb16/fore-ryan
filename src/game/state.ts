@@ -1,4 +1,7 @@
-import { HEAD_R, START_LIVES, STATE, type GameState } from "./config";
+import { HEAD_R, MODE, START_LIVES, STATE, type GameMode, type GameState } from "./config";
+import { levelConfig } from "../../shared/rules";
+import type { LevelConfig } from "../../shared/rules";
+import type { LevelStats } from "../../shared/types";
 import type { Confetti, Hazard, Hole, Player, Shot, Spark } from "./types";
 
 /** Scalar game state. Grouped in one object so modules share live values. */
@@ -8,9 +11,25 @@ export const game = {
   scale: 1,
   baseHeadR: HEAD_R,
   state: STATE.START as GameState,
-  score: 0,
+  mode: MODE.BIRTHDAY as GameMode,
+
+  // --- progression ---
+  level: 1,
+  cfg: levelConfig(1) as LevelConfig,
+  /** Holes sunk in the current level. */
+  holes: 0,
+  /** Points banked from levels already scored. */
+  points: 0,
   lives: START_LIVES,
+  /** Total run time. Also the birthday round's clock. */
   elapsed: 0,
+
+  // --- current level tally, folded into `log` when the level ends ---
+  levelStartMs: 0,
+  levelShots: 0,
+  levelLivesLost: 0,
+  log: [] as LevelStats[],
+
   spawnTimer: 0,
   nextSpawn: 0,
   shotTimer: 0,

@@ -18,7 +18,7 @@ window.addEventListener("keydown", (e) => {
   if (k === " " || k === "enter") {
     e.preventDefault();
     if (game.state === STATE.PLAYING) game.firing = true;
-    else startGame();
+    else startGame(game.mode);
   }
 });
 

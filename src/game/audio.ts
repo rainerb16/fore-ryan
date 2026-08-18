@@ -81,6 +81,7 @@ export const sfx = {
     tone(150, 0.2, "sawtooth", 0, 0.14);
     tone(96, 0.26, "sawtooth", 0.05, 0.12);
   },
+  levelUp: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.16, "triangle", i * 0.075, 0.1)),
   win: playBirthdaySong,
   lose: () => [392, 349, 294].forEach((f, i) => tone(f, 0.24, "sine", i * 0.13, 0.14)),
 };

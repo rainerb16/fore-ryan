@@ -1,9 +1,14 @@
 # Fore Ryan! ⛳🎉
 
-A browser game. Ryan's floating head launches golf balls at holes sliding across
-the top of the screen while dodging falling trees and water hazards. Sink 5 holes and the
-birthday payoff fires: slow-motion on the winning shot, a screen flash, confetti rain, a
-party hat, and the "Happy Birthday" melody. Take 3 hits and it's back to the clubhouse.
+A browser game. Ryan's floating head launches golf balls at holes sliding across the top of
+the screen while dodging falling trees and water hazards.
+
+Two ways to play:
+
+- **Birthday Round** — the gift. Sink 5 holes and the payoff fires: slow-motion on the
+  winning shot, a screen flash, confetti rain, a party hat, and the "Happy Birthday" melody.
+- **Contest Mode** — the leaderboard run. Levels get harder, lives carry across them, and
+  the run ends when you're out of hearts. Points rank the contest.
 
 No runtime dependencies and no audio or image files beyond the one head cutout — the only
 tooling is Vite and TypeScript for the build.
@@ -15,29 +20,42 @@ npm install
 npm run dev        # local dev server with hot reload
 npm run build      # typecheck, then bundle to dist/
 npm run preview    # serve the production build
-npm run smoke      # build, then boot the bundle headlessly and tick 4s of frames
+npm test           # scoring and validation rules
+npm run smoke      # build, then play both modes headlessly in jsdom
+npm run check      # all three
 ```
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `index.html` | Page shell — HUD and the three overlay screens |
+| `shared/rules.ts` | Levels, hazards, and the constants the server also needs |
+| `shared/scoring.ts` | The points formula and the submission validator |
+| `shared/types.ts` | Level and run shapes exchanged with the backend |
+| `index.html` | Page shell — HUD, level banner, and the overlay screens |
 | `src/main.ts` | Bootstrap: wires buttons, loads images, starts the loop |
 | `src/styles.css` | All styling |
-| `src/game/config.ts` | Every tuning constant |
+| `src/game/config.ts` | Client-only tuning constants |
 | `src/game/state.ts` | Shared mutable game state |
-| `src/game/world.ts` | Viewport sizing, holes, spawning, round reset |
+| `src/game/progression.ts` | Level and run bookkeeping |
+| `src/game/world.ts` | Viewport sizing, holes, spawning, board reset |
 | `src/game/update.ts` | Per-frame simulation and collision |
 | `src/game/input.ts` | Keyboard, touch, and mouse handling |
 | `src/game/audio.ts` | WebAudio synthesis and the mute toggle |
 | `src/game/images.ts` | Head cutout loading and trim |
 | `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
 | `src/render/` | Canvas drawing: shapes, the scene, and the overlay portraits |
-| `src/ui/` | DOM refs, HUD, and screen transitions |
-| `test/smoke.mjs` | Headless boot check against the built bundle |
+| `src/ui/` | DOM refs, HUD, level banner, and screen transitions |
+| `test/` | Rule tests and the headless boot check |
 | `public/assets/ryan-head-floating.png` | Head cutout (300×300, transparent background) |
 | `netlify.toml` | Netlify build and publish config |
+
+### Why `shared/`
+
+A leaderboard means a server that decides whether a submitted score is real, and it can
+only do that if it knows the level table, the fire rate, and the scoring formula. Keeping
+one copy in `shared/` means the client and the validator can't drift apart — a duplicated
+constant would eventually reject a legitimate top score mid-contest.
 
 ## How to play
 
@@ -45,13 +63,47 @@ npm run smoke      # build, then boot the bundle headlessly and tick 4s of frame
 - **Mobile:** touch and drag to move — balls fire automatically while you hold
 
 One input does everything on mobile; there's no separate fire button. Hazards block shots
-mid-air and cost a life on contact. Each hole sunk makes Ryan's head bigger.
+mid-air and cost a life on contact. Each hole sunk makes Ryan's head bigger, and the head
+resets to normal at the start of every level.
+
+## Levels
+
+Five levels are hand-tuned in `shared/rules.ts`; past those the tail is generated from the
+last one, tightening on every axis until it hits a cap so deep levels stay hard rather than
+impossible.
+
+| Level | Name | Holes | Flavour |
+| --- | --- | --- | --- |
+| 1 | Driving Range | 5 | The birthday round — unchanged from the original game |
+| 2 | Front Nine | 6 | Faster cups, tighter hazard spacing |
+| 3 | Water Hazard | 7 | Three cups, mostly water |
+| 4 | The Woods | 8 | Mostly trees |
+| 5 | Championship | 9 | Everything at once |
+| 6+ | Sudden Death | up to 12 | Generated, alternating flavour |
+
+Each level starts from a clean board and its own difficulty baseline; a timed ramp then
+builds pressure within the level.
+
+## Scoring
+
+Contest Mode only. Every award is multiplied by the level number, so depth is worth far
+more than grinding the early levels.
+
+| Award | Value | When |
+| --- | --- | --- |
+| Hole | 100 × level | Each hole sunk, even on the level you die on |
+| Level clear | 500 × level | Clearing the level |
+| Flawless | 300 × level | Clearing it without losing a life |
+| Speed | 20 × level | Per whole second under the level's par |
+
+The level you die on still pays for the holes you sank — progress counts — but none of the
+bonuses. Full rules and the numbers live in `shared/scoring.ts`.
 
 ## Sound
 
-On by default. The audio context is created on the first tap of **Tee Off**, so it never
-trips browser autoplay blocking. The 🔊 toggle sits in the top-right and stays reachable
-on every screen, including before the game starts.
+On by default. The audio context is created on the first tap of a mode button, so it never
+trips browser autoplay blocking. The 🔊 toggle sits in the top-right and stays reachable on
+every screen, including before the game starts.
 
 Everything is synthesized with WebAudio oscillators — there are no audio files. The win
 melody is "Happy Birthday to You", which entered the public domain in 2016.
@@ -62,8 +114,8 @@ To ship it muted by default, change the fallback in `src/game/audio.ts` to `"1"`
 let muted = store.get("ryanbday.muted", "0") === "1";
 ```
 
-Note: iOS honors the physical silent switch for WebAudio, so a phone on silent stays
-silent regardless.
+Note: iOS honors the physical silent switch for WebAudio, so a phone on silent stays silent
+regardless.
 
 ## Swapping the photo
 
@@ -93,28 +145,27 @@ The site root serves the game directly, so the shareable link is just the domain
 
 ## Tuning
 
-Everything lives in `src/game/config.ts`:
+Per-level difficulty lives in `shared/rules.ts`. Everything else is in `src/game/config.ts`:
 
 | Constant | Purpose |
 | --- | --- |
-| `HOLES_TO_WIN` | holes needed to win (5) |
-| `START_LIVES` | lives (3) |
+| `START_LIVES` | lives per run (3) — in `shared/rules.ts` |
+| `SHOT_COOLDOWN` | ms between shots while holding fire — in `shared/rules.ts` |
 | `HEAD_GROW` | head growth per hole sunk (0.06 = 6%) |
-| `SHOT_COOLDOWN` | ms between shots while holding fire |
-| `HOLE_COUNT` | holes on screen at once |
-| `HOLE_SPEED_MIN/MAX` | how fast holes slide |
-| `SPAWN_MIN_MS` / `SPAWN_MAX_MS` | hazard spawn interval |
-| `HAZARD_FALL` | hazard fall speed |
+| `HAZARD_FALL` | base hazard fall speed, scaled per level |
+| `SPAWN_FLOOR_RATIO` | how tight the in-level ramp may squeeze hazard spawns |
+| `RAMP_EVERY_MS`, `RAMP_SPEED_STEP` | in-level difficulty ramp |
 | `FINALE_MS` / `FINALE_SLOW` | length and time-scale of the winning-shot slow-motion |
-| `RAMP_EVERY_MS`, `RAMP_SPEED_STEP` | difficulty ramp |
 | `INVULN_MS` | grace period after a hit |
 | `HITBOX_SCALE` | lower = more forgiving collisions |
 
 ## Notes
 
-- Round count and best time persist via `localStorage`, guarded so private browsing and
-  `file://` degrade quietly.
+- Round count, best time, and best contest score persist via `localStorage`, guarded so
+  private browsing and `file://` degrade quietly.
 - Collision uses an ellipse matched to the head image. Shot-vs-hole and shot-vs-hazard
   checks are swept so fast shots can't skip through between frames.
 - Overlay screens shrink at three viewport-height breakpoints, since they can't scroll.
+- The smoke test seeds `Math.random`, so a headless run either always passes or always
+  fails — never intermittently.
 - The pre-build single-file version is preserved at the `v1-single-file` tag.

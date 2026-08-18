@@ -16,17 +16,31 @@
   <canvas id="game"></canvas>
 
   <div id="hud" class="pregame">
-    <span class="pill" id="score">⛳ 0 / 5</span>
-    <span class="pill" id="lives">❤️❤️❤️</span>
-    <button id="muteBtn" type="button" aria-label="Toggle sound">🔇</button>
+    <div class="group">
+      <span class="pill lvl" id="level" hidden>LVL 1</span>
+      <span class="pill" id="score">⛳ 0 / 5</span>
+      <span class="pill pts" id="points" hidden>0 pts</span>
+    </div>
+    <div class="group">
+      <span class="pill" id="lives">❤️❤️❤️</span>
+      <button id="muteBtn" type="button" aria-label="Toggle sound">🔇</button>
+    </div>
+  </div>
+
+  <div id="banner" aria-live="polite">
+    <strong id="bannerTitle"></strong>
+    <span id="bannerSub"></span>
   </div>
 
   <div class="overlay" id="startScreen">
     <canvas class="portrait idle" id="startPortrait" width="420" height="476"></canvas>
     <p class="kicker">🎂 Happy Birthday 🎂</p>
     <h1>Fore Ryan!</h1>
-    <p class="lead">Launch golf balls into 5 holes — dodge the trees and water!</p>
-    <button class="big" id="startBtn" type="button">Tee Off ⛳</button>
+    <p class="lead">Launch golf balls into the holes — dodge the trees and water!</p>
+    <div class="modes">
+      <button class="big" id="startBtn" type="button">Tee Off ⛳</button>
+      <button class="big alt" id="contestBtn" type="button">Contest Mode 🏆</button>
+    </div>
     <p class="sub" id="startHint"></p>
   </div>
 
@@ -44,6 +58,17 @@
     <p>The hazards win this round. Take the drop and try again.</p>
     <button class="big" id="loseBtn" type="button">Try Again</button>
     <p class="sub" id="loseStats"></p>
+  </div>
+
+  <div class="overlay" id="runScreen" hidden>
+    <p class="kicker">🏆 Contest Run</p>
+    <h1 id="runHeadline">0 points</h1>
+    <p class="sub" id="runStats"></p>
+    <ul class="scorecard" id="runBreakdown"></ul>
+    <div class="modes">
+      <button class="big" id="runAgainBtn" type="button">Play Again 🏆</button>
+      <button class="big alt" id="runHomeBtn" type="button">Back</button>
+    </div>
   </div>
 </div>
 

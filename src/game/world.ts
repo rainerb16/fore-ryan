@@ -6,17 +6,13 @@ import {
   HAZARDS,
   HAZARD_FALL,
   HEAD_R,
-  HOLE_COUNT,
   HOLE_SPEED_MAX,
   HOLE_SPEED_MIN,
   SHOT_R,
   SHOT_SPEED,
-  SPAWN_MAX_MS,
-  SPAWN_MIN_MS,
-  START_LIVES,
 } from "./config";
 import { clampPlayer, headHalfH } from "./metrics";
-import { pick, rand } from "./rng";
+import { pick, pickWeighted, rand } from "./rng";
 import { confetti, game, hazards, holes, player, shots, sparks } from "./state";
 import type { Hole } from "./types";
 
@@ -45,13 +41,17 @@ function holeY(i: number): number {
 export function resetHole(hole: Hole, i: number): void {
   hole.y = holeY(i);
   hole.x = rand(game.W * 0.2, game.W * 0.8);
-  hole.vx = rand(HOLE_SPEED_MIN, HOLE_SPEED_MAX) * (Math.random() < 0.5 ? -1 : 1) * game.scale;
+  hole.vx =
+    rand(HOLE_SPEED_MIN, HOLE_SPEED_MAX) *
+    (Math.random() < 0.5 ? -1 : 1) *
+    game.scale *
+    game.cfg.holeSpeedMult;
   hole.respawn = 0;
 }
 
 export function layoutHoles(): void {
   holes.length = 0;
-  for (let i = 0; i < HOLE_COUNT; i++) {
+  for (let i = 0; i < game.cfg.holeCount; i++) {
     const hole = { index: i } as Hole;
     resetHole(hole, i);
     holes.push(hole);
@@ -60,7 +60,7 @@ export function layoutHoles(): void {
 
 // --- spawning ---------------------------------------------------------------
 export function spawnHazard(): void {
-  const type = pick(HAZARDS);
+  const type = pickWeighted(HAZARDS, game.cfg.hazardWeights);
   const size = 44 * game.scale;
   const r = size * 0.38;
   hazards.push({
@@ -69,7 +69,12 @@ export function spawnHazard(): void {
     r,
     x: rand(r + 6, game.W - r - 6),
     y: -size - 10,
-    vy: HAZARD_FALL * (game.H / 720) * game.speedMult * rand(0.9, 1.12),
+    vy:
+      HAZARD_FALL *
+      (game.H / 720) *
+      game.cfg.hazardFallMult *
+      game.speedMult *
+      rand(0.9, 1.12),
     vx: rand(-18, 18),
     rot: rand(-0.4, 0.4),
     spin: rand(-1.6, 1.6),
@@ -85,6 +90,7 @@ export function fire(): void {
     rot: 0,
     spin: rand(-8, 8),
   });
+  game.levelShots++;
   sfx.shoot();
 }
 
@@ -143,21 +149,14 @@ export function rainConfetti(dt: number): void {
   }
 }
 
-// --- round ------------------------------------------------------------------
+// --- board ------------------------------------------------------------------
+/** Clear the board and re-centre the player. Run counters belong to progression.ts. */
 export function reset(): void {
   shots.length = 0;
   hazards.length = 0;
   confetti.length = 0;
   sparks.length = 0;
-  game.score = 0;
-  game.lives = START_LIVES;
-  game.elapsed = 0;
-  game.spawnTimer = 0;
-  game.nextSpawn = rand(SPAWN_MIN_MS, SPAWN_MAX_MS);
   game.shotTimer = 0;
-  game.speedMult = 1;
-  game.spawnMult = 1;
-  game.rampTimer = 0;
   game.invuln = 0;
   game.shake = 0;
   game.frozen = false;

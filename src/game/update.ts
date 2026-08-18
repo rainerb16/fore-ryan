@@ -1,11 +1,11 @@
-import { endLose, endWin } from "../ui/screens";
+import { showBanner } from "../ui/banner";
+import { endLose, endRun, endWin } from "../ui/screens";
 import { updateHud } from "../ui/hud";
 import { sfx } from "./audio";
 import {
   FINALE_MS,
   FINALE_SLOW,
   HITBOX_SCALE,
-  HOLES_TO_WIN,
   HOLE_RESPAWN_MS,
   INVULN_MS,
   KEY_SPEED,
@@ -14,14 +14,13 @@ import {
   RAMP_SPEED_STEP,
   SHAKE_MS,
   SHOT_COOLDOWN,
-  SPAWN_FLOOR_MS,
-  SPAWN_MAX_MS,
-  SPAWN_MIN_MS,
+  SPAWN_FLOOR_RATIO,
   SPEED_CAP,
   SPIN_MS,
   STATE,
 } from "./config";
 import { clampPlayer, headHalfH, headRadius, holeRX } from "./metrics";
+import { bankLevel, beginLevel, isContest } from "./progression";
 import { rand } from "./rng";
 import { confetti, game, hazards, holes, keys, player, shots, sparks } from "./state";
 import type { Hole } from "./types";
@@ -44,14 +43,14 @@ function updatePlayer(dt: number): void {
 
 function sinkHole(hole: Hole): void {
   hole.respawn = HOLE_RESPAWN_MS;
-  game.score++;
+  game.holes++;
   sfx.sink();
   burstConfetti(26, hole.x, hole.y, 26);
   updateHud();
   clampPlayer();
 }
 
-/** Returns true when the winning hole was sunk. */
+/** Returns true when the level's last hole was sunk. */
 function updateShots(dt: number): boolean {
   for (let i = shots.length - 1; i >= 0; i--) {
     const s = shots[i];
@@ -76,7 +75,7 @@ function updateShots(dt: number): boolean {
       }
     }
     if (consumed) {
-      if (game.score >= HOLES_TO_WIN) return true;
+      if (game.holes >= game.cfg.holesToClear) return true;
       continue;
     }
 
@@ -129,6 +128,7 @@ function updateHazards(dt: number): boolean {
     if (nx * nx + ny * ny <= 1) {
       hazards.splice(i, 1);
       game.lives--;
+      game.levelLivesLost++;
       game.invuln = INVULN_MS;
       game.shake = SHAKE_MS;
       player.spinT = SPIN_MS;
@@ -147,6 +147,17 @@ function startFinale(): void {
   game.finaleT = FINALE_MS;
   game.firing = false;
   game.invuln = FINALE_MS + 400;
+}
+
+/** Contest only: bank the cleared level and roll straight into the next one. */
+function advanceLevel(): void {
+  bankLevel();
+  beginLevel(game.level + 1);
+  sfx.levelUp();
+  burstConfetti(70, game.W / 2, game.H * 0.5, 130);
+  showBanner(`Level ${game.level}`, game.cfg.name);
+  game.invuln = Math.max(game.invuln, INVULN_MS);
+  updateHud();
 }
 
 export function update(dt: number): void {
@@ -192,17 +203,26 @@ export function update(dt: number): void {
 
   game.elapsed += dt * 1000;
 
+  // How tight the in-level ramp may squeeze spawns, relative to this level.s own pace.
+  const spawnFloorMs = game.cfg.hazardSpawnMinMs * SPAWN_FLOOR_RATIO;
+
   game.rampTimer += dt * 1000;
   if (game.rampTimer >= RAMP_EVERY_MS) {
     game.rampTimer -= RAMP_EVERY_MS;
     game.speedMult = Math.min(SPEED_CAP, game.speedMult * RAMP_SPEED_STEP);
-    game.spawnMult = Math.max(SPAWN_FLOOR_MS / SPAWN_MAX_MS, game.spawnMult * RAMP_SPAWN_STEP);
+    game.spawnMult = Math.max(
+      spawnFloorMs / game.cfg.hazardSpawnMaxMs,
+      game.spawnMult * RAMP_SPAWN_STEP,
+    );
   }
 
   game.spawnTimer += dt * 1000;
   if (game.spawnTimer >= game.nextSpawn) {
     game.spawnTimer = 0;
-    game.nextSpawn = Math.max(SPAWN_FLOOR_MS, rand(SPAWN_MIN_MS, SPAWN_MAX_MS) * game.spawnMult);
+    game.nextSpawn = Math.max(
+      spawnFloorMs,
+      rand(game.cfg.hazardSpawnMinMs, game.cfg.hazardSpawnMaxMs) * game.spawnMult,
+    );
     spawnHazard();
   }
 
@@ -231,11 +251,13 @@ export function update(dt: number): void {
   }
 
   if (updateShots(dt)) {
-    startFinale();
+    if (isContest()) advanceLevel();
+    else startFinale();
     return;
   }
   if (updateHazards(dt)) {
-    endLose();
+    if (isContest()) endRun();
+    else endLose();
     return;
   }
 }

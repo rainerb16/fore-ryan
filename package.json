@@ -8,9 +8,12 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "smoke": "npm run build && node test/smoke.mjs"
+    "test": "node --test test/scoring.test.mjs",
+    "smoke": "npm run build && node test/smoke.mjs",
+    "check": "npm run typecheck && npm test && npm run smoke"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "jsdom": "^26.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
