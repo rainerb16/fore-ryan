@@ -13,7 +13,6 @@ No build step, no dependencies, no audio or image files beyond the one head cuto
 | --- | --- |
 | `birthday-game.html` | The game — all HTML/CSS/JS inline |
 | `assets/ryan-head-floating.png` | Head cutout (300×300, transparent background) |
-| `birthday-game-catcher-backup.html` | Earlier catch-the-balls version, kept for reference |
 | `netlify.toml` | Netlify config; rewrites `/` to the game |
 
 ## How to play
