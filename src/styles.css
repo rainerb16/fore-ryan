@@ -4,6 +4,16 @@
     --purple:#a78bfa;
     --text:  #f2ecff;
     --muted: #b9a9d6;
+
+    /* Backdrop, swapped per level by src/render/theme.ts. These defaults are
+       the Driving Range look, which is also the birthday round. */
+    --glow-a:   rgba(167,139,250,.22);
+    --glow-b:   rgba(255,111,163,.18);
+    --ground:   rgba(34,120,80,.34);
+    --sky-top:  #140b33;
+    --sky-mid:  #1d1046;
+    --sky-deep: #2a1450;
+    --sky-base: #14092c;
   }
 
   * { box-sizing: border-box; }
@@ -30,10 +40,10 @@
     position: fixed;
     inset: 0;
     background:
-      radial-gradient(900px 600px at 18% 8%,  rgba(167,139,250,.22), transparent 65%),
-      radial-gradient(800px 620px at 88% 18%, rgba(255,111,163,.18), transparent 65%),
-      radial-gradient(1000px 500px at 50% 108%, rgba(34,120,80,.34), transparent 70%),
-      linear-gradient(168deg, #140b33 0%, #1d1046 42%, #2a1450 72%, #14092c 100%);
+      radial-gradient(900px 600px at 18% 8%,  var(--glow-a), transparent 65%),
+      radial-gradient(800px 620px at 88% 18%, var(--glow-b), transparent 65%),
+      radial-gradient(1000px 500px at 50% 108%, var(--ground), transparent 70%),
+      linear-gradient(168deg, var(--sky-top) 0%, var(--sky-mid) 42%, var(--sky-deep) 72%, var(--sky-base) 100%);
   }
 
   #stage::after {
@@ -169,7 +179,10 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
+    /* flex-start plus auto margins on the end children: the block still
+       centres when it fits, but a tall scorecard scrolls instead of having its
+       top and bottom clipped, which is what centring alone does. */
+    justify-content: flex-start;
     gap: 15px;
     padding: 24px;
     text-align: center;
@@ -180,6 +193,8 @@
     backdrop-filter: blur(7px);
     -webkit-backdrop-filter: blur(7px);
   }
+  .overlay > :first-child { margin-top: auto; }
+  .overlay > :last-child { margin-bottom: auto; }
   .overlay[hidden] { display: none; }
 
   .overlay h1 {
@@ -279,7 +294,7 @@
     margin: 0;
     padding: 0;
     width: min(430px, 92vw);
-    max-height: 34vh;
+    max-height: 22vh;
     overflow-y: auto;
     font-size: 15px;
     font-weight: 700;

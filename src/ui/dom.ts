@@ -4,6 +4,9 @@ const need = <T extends HTMLElement>(id: string): T => {
   return el as T;
 };
 
+export const stage = need("stage");
+export const decorEls = Array.from(document.querySelectorAll<HTMLElement>(".decor"));
+
 export const canvas = need<HTMLCanvasElement>("game");
 export const ctx = canvas.getContext("2d")!;
 

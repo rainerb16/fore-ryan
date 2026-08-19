@@ -7,6 +7,7 @@ import { game } from "../game/state";
 import { store } from "../game/storage";
 import { burstConfetti, reset } from "../game/world";
 import { requestRunToken } from "../net/api";
+import { applyTheme } from "../render/theme";
 import { hideBanner, showBanner } from "./banner";
 import {
   boardScreen,
@@ -59,6 +60,7 @@ export function showStart(): void {
   hud.classList.add("pregame");
   game.state = STATE.START;
   game.mode = MODE.BIRTHDAY;
+  applyTheme(1);
   reset();
   updateHud();
   startScreen.hidden = false;

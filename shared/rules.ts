@@ -91,15 +91,26 @@ export const AUTHORED_LEVELS: readonly LevelConfig[] = [
   },
 ];
 
-// Endless tail: extrapolate from the last authored level. Every axis is capped so
-// deep levels stay hard-but-possible rather than mathematically unwinnable.
-const TAIL_CAPS = {
+// Endless tail: extrapolate from the last authored level, tightening on every
+// axis with no plateau. A run therefore always ends — deep enough in, the level
+// becomes unsurvivable and the leaderboard separates players on skill rather
+// than on how long they were willing to sit there.
+//
+// The bounds below are safety rails, not difficulty caps, and sit far beyond any
+// level a person will reach. Past them the simulation itself would misbehave: a
+// hazard falling further than the player's own height between two frames could
+// cross it without ever registering a hit, which would make deep levels easier.
+const SAFETY = {
+  /** A real cap — a very long level is tedious, not hard. */
   holesToClear: 12,
-  holeSpeedMult: 2.6,
-  hazardSpawnMinMs: 240,
-  hazardSpawnMaxMs: 420,
-  hazardFallMult: 1.9,
+  holeSpeedMult: 8,
+  hazardSpawnMinMs: 90,
+  hazardSpawnMaxMs: 150,
+  hazardFallMult: 6,
 };
+
+/** Stop stretching par this far in, so scores cannot run away on the speed bonus. */
+const PAR_GROWTH_LEVELS = 15;
 
 export function levelConfig(level: number): LevelConfig {
   const n = Math.max(1, Math.floor(level));
@@ -109,18 +120,18 @@ export function levelConfig(level: number): LevelConfig {
   const base = AUTHORED_LEVELS[AUTHORED_LEVELS.length - 1];
   const t = n - AUTHORED_LEVELS.length; // 1, 2, 3, ... into the tail
 
-  const holesToClear = Math.min(TAIL_CAPS.holesToClear, base.holesToClear + Math.ceil(t / 2));
+  const holesToClear = Math.min(SAFETY.holesToClear, base.holesToClear + Math.ceil(t / 2));
   return {
     level: n,
     name: `Sudden Death ${t}`,
     holesToClear,
     holeCount: base.holeCount,
-    holeSpeedMult: Math.min(TAIL_CAPS.holeSpeedMult, base.holeSpeedMult * 1.06 ** t),
-    hazardSpawnMinMs: Math.max(TAIL_CAPS.hazardSpawnMinMs, base.hazardSpawnMinMs * 0.94 ** t),
-    hazardSpawnMaxMs: Math.max(TAIL_CAPS.hazardSpawnMaxMs, base.hazardSpawnMaxMs * 0.94 ** t),
-    hazardFallMult: Math.min(TAIL_CAPS.hazardFallMult, base.hazardFallMult * 1.04 ** t),
+    holeSpeedMult: Math.min(SAFETY.holeSpeedMult, base.holeSpeedMult * 1.06 ** t),
+    hazardSpawnMinMs: Math.max(SAFETY.hazardSpawnMinMs, base.hazardSpawnMinMs * 0.94 ** t),
+    hazardSpawnMaxMs: Math.max(SAFETY.hazardSpawnMaxMs, base.hazardSpawnMaxMs * 0.94 ** t),
+    hazardFallMult: Math.min(SAFETY.hazardFallMult, base.hazardFallMult * 1.04 ** t),
     // Alternate the flavour so the tail doesn't feel like one long level.
     hazardWeights: t % 2 === 1 ? { water: 2, tree: 1 } : { water: 1, tree: 2 },
-    parMs: holesToClear * (5200 + 200 * t),
+    parMs: holesToClear * (5200 + 200 * Math.min(t, PAR_GROWTH_LEVELS)),
   };
 }

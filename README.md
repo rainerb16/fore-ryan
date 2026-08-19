@@ -44,7 +44,7 @@ npm run check      # all three
 | `src/game/audio.ts` | WebAudio synthesis and the mute toggle |
 | `src/game/images.ts` | Head cutout loading and trim |
 | `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
-| `src/render/` | Canvas drawing: shapes, the scene, and the overlay portraits |
+| `src/render/` | Canvas drawing, per-level themes, and the overlay portraits |
 | `src/ui/` | DOM refs, HUD, banner, screens, and the leaderboard |
 | `src/net/api.ts` | Calls to the leaderboard endpoints |
 | `netlify/functions/` | The leaderboard API — token issue, submission, standings |
@@ -73,20 +73,38 @@ resets to normal at the start of every level.
 ## Levels
 
 Five levels are hand-tuned in `shared/rules.ts`; past those the tail is generated from the
-last one, tightening on every axis until it hits a cap so deep levels stay hard rather than
-impossible.
+last one and keeps tightening on every axis with no plateau.
 
-| Level | Name | Holes | Flavour |
+| Level | Name | Holes | Flavour | Backdrop |
+| --- | --- | --- | --- | --- |
+| 1 | Driving Range | 5 | The birthday round — unchanged from the original game | Purple night |
+| 2 | Front Nine | 6 | Faster cups, tighter hazard spacing | Sunrise |
+| 3 | Water Hazard | 7 | Three cups, mostly water | Deep teal |
+| 4 | The Woods | 8 | Mostly trees | Dark forest |
+| 5 | Championship | 9 | Everything at once | Royal and gold |
+| 6+ | Sudden Death | up to 12 | Generated, tightening without limit | Midnight / fire, alternating |
+
+Each level starts from a clean board, its own difficulty baseline, and its own sky; a timed
+ramp then builds pressure within the level. Backdrops live in `src/render/theme.ts` — they
+are client-only, so the server never needs to know about them.
+
+### Why the tail has no ceiling
+
+A contest run has to end on its own, or the leaderboard ranks stamina rather than skill. An
+earlier version capped every axis around level 15, after which difficulty was flat and a
+good player could in principle continue indefinitely. Now it keeps climbing:
+
+| Level | Hole speed | Hazard gap | Fall speed |
 | --- | --- | --- | --- |
-| 1 | Driving Range | 5 | The birthday round — unchanged from the original game |
-| 2 | Front Nine | 6 | Faster cups, tighter hazard spacing |
-| 3 | Water Hazard | 7 | Three cups, mostly water |
-| 4 | The Woods | 8 | Mostly trees |
-| 5 | Championship | 9 | Everything at once |
-| 6+ | Sudden Death | up to 12 | Generated, alternating flavour |
+| 5 | 1.60× | 380–620 ms | 1.30× |
+| 11 | 2.27× | 262–428 ms | 1.64× |
+| 20 | 3.83× | 150–245 ms | 2.34× |
+| 30 | 6.87× | 90–150 ms | 3.47× |
 
-Each level starts from a clean board and its own difficulty baseline; a timed ramp then
-builds pressure within the level.
+The bounds in `SAFETY` are not difficulty caps — they sit far past any reachable level and
+exist so the simulation stays honest. A hazard falling further than the player is tall
+between two frames could cross them without registering a hit, which would make deep levels
+*easier*, not harder.
 
 ## Scoring
 

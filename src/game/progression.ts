@@ -8,6 +8,7 @@ import { updateHud } from "../ui/hud";
 import { MODE, START_LIVES, type GameMode } from "./config";
 import { rand } from "./rng";
 import { game, hazards, shots } from "./state";
+import { applyTheme } from "../render/theme";
 import { layoutHoles } from "./world";
 
 /** Snapshot of the level in progress. */
@@ -39,6 +40,7 @@ export function beginLevel(n: number): void {
   game.spawnTimer = 0;
   game.nextSpawn = rand(game.cfg.hazardSpawnMinMs, game.cfg.hazardSpawnMaxMs);
 
+  applyTheme(n);
   layoutHoles();
   updateHud();
 }

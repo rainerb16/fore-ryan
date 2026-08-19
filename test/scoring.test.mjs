@@ -71,27 +71,39 @@ test("runTotal is the sum of its levels", () => {
 
 // --- the endless tail -------------------------------------------------------
 
-test("levels past the authored set are generated and stay within caps", () => {
+test("levels past the authored set are generated and stay coherent", () => {
   const last = AUTHORED_LEVELS[AUTHORED_LEVELS.length - 1];
   for (const n of [6, 12, 40, 500]) {
     const cfg = levelConfig(n);
     assert.equal(cfg.level, n);
     assert.ok(cfg.holesToClear >= last.holesToClear && cfg.holesToClear <= 12);
-    assert.ok(cfg.holeSpeedMult <= 2.6);
-    assert.ok(cfg.hazardSpawnMinMs >= 240);
-    assert.ok(cfg.hazardSpawnMinMs < cfg.hazardSpawnMaxMs, "spawn window stays open");
-    assert.ok(cfg.hazardFallMult <= 1.9);
-    assert.ok(cfg.parMs > 0);
+    assert.ok(cfg.hazardSpawnMinMs < cfg.hazardSpawnMaxMs, "the spawn window stays open");
+    assert.ok(cfg.hazardSpawnMinMs > 0 && cfg.parMs > 0);
+    // Safety rails, not difficulty caps: past these a hazard could fall further
+    // than the player's own height between frames and pass through unnoticed.
+    assert.ok(cfg.holeSpeedMult <= 8);
+    assert.ok(cfg.hazardFallMult <= 6);
   }
 });
 
 test("difficulty never eases going deeper", () => {
-  for (let n = 5; n < 30; n++) {
+  for (let n = 5; n < 200; n++) {
     const a = levelConfig(n);
     const b = levelConfig(n + 1);
     assert.ok(b.holeSpeedMult >= a.holeSpeedMult, `level ${n + 1} hole speed`);
     assert.ok(b.hazardSpawnMaxMs <= a.hazardSpawnMaxMs, `level ${n + 1} spawn gap`);
+    assert.ok(b.hazardFallMult >= a.hazardFallMult, `level ${n + 1} fall speed`);
   }
+});
+
+test("difficulty keeps climbing past the old plateau, so a run always ends", () => {
+  // The tail used to flatten out around level 15, which made a contest run an
+  // endurance test. Every axis must still be tightening well beyond that.
+  const at15 = levelConfig(15);
+  const at30 = levelConfig(30);
+  assert.ok(at30.holeSpeedMult > at15.holeSpeedMult * 1.4, "holes keep getting faster");
+  assert.ok(at30.hazardSpawnMaxMs < at15.hazardSpawnMaxMs * 0.7, "hazards keep getting denser");
+  assert.ok(at30.hazardFallMult > at15.hazardFallMult * 1.3, "hazards keep falling faster");
 });
 
 // --- validation -------------------------------------------------------------

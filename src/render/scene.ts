@@ -4,12 +4,13 @@ import { rand } from "../game/rng";
 import { confetti, game, hazards, holes, player, shots, sparks } from "../game/state";
 import { ctx } from "../ui/dom";
 import { drawGolfBall, drawHead, drawHole } from "./shapes";
+import { activeTheme } from "./theme";
 
 function drawFairway(): void {
   const bandH = Math.min(game.H * 0.28, 190 * game.scale);
   const g = ctx.createLinearGradient(0, game.H - bandH, 0, game.H);
-  g.addColorStop(0, "rgba(38,120,84,0)");
-  g.addColorStop(1, "rgba(46,142,96,.26)");
+  g.addColorStop(0, activeTheme.fairwayTop);
+  g.addColorStop(1, activeTheme.fairwayBottom);
   ctx.fillStyle = g;
   ctx.fillRect(0, game.H - bandH, game.W, bandH);
 }

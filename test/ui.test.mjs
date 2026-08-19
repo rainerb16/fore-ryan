@@ -145,6 +145,45 @@ async function playContestRun(g) {
   assert.equal(g.el("runScreen").hidden, false);
 }
 
+// --- per-level theming ------------------------------------------------------
+
+test("the backdrop changes when you reach a new level", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  const stage = g.el("stage");
+  const sky = () => stage.style.getPropertyValue("--sky-top");
+  const decor = () => g.doc.querySelector(".decor").textContent;
+
+  g.click("contestBtn");
+  const levelOneSky = sky();
+  const levelOneDecor = decor();
+  assert.ok(levelOneSky, "level 1 should have applied a theme");
+
+  g.holdFire();
+  await g.tick(1800);
+  assert.ok(Number(g.text("level").replace(/\D/g, "")) >= 2, "should have advanced a level");
+
+  assert.notEqual(sky(), levelOneSky, "a new level should repaint the sky");
+  assert.notEqual(decor(), levelOneDecor, "a new level should change the scenery");
+});
+
+test("the birthday round always uses the level 1 look", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  const stage = g.el("stage");
+
+  g.click("contestBtn");
+  const levelOneSky = stage.style.getPropertyValue("--sky-top");
+  g.holdFire();
+  await g.tick(1800); // move to a later level, and its theme
+
+  g.click("runHomeBtn"); // back to the start screen
+  assert.equal(stage.style.getPropertyValue("--sky-top"), levelOneSky);
+
+  g.click("startBtn");
+  assert.equal(stage.style.getPropertyValue("--sky-top"), levelOneSky);
+});
+
 test("a contest run asks for a token as play begins", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
