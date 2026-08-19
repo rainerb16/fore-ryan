@@ -22,6 +22,7 @@ export const startScreen = need("startScreen");
 export const winScreen = need("winScreen");
 export const loseScreen = need("loseScreen");
 export const runScreen = need("runScreen");
+export const boardScreen = need("boardScreen");
 
 export const winStats = need("winStats");
 export const loseStats = need("loseStats");
@@ -29,10 +30,22 @@ export const runStats = need("runStats");
 export const runHeadline = need("runHeadline");
 export const runBreakdown = need("runBreakdown");
 
+export const submitForm = need<HTMLFormElement>("submitForm");
+export const nameInput = need<HTMLInputElement>("nameInput");
+export const emailInput = need<HTMLInputElement>("emailInput");
+export const submitBtn = need<HTMLButtonElement>("submitBtn");
+export const submitStatus = need("submitStatus");
+
+export const boardList = need("boardList");
+export const boardStatus = need("boardStatus");
+export const boardBtn = need<HTMLButtonElement>("boardBtn");
+export const boardBackBtn = need<HTMLButtonElement>("boardBackBtn");
+
 export const startHint = need("startHint");
 export const startBtn = need<HTMLButtonElement>("startBtn");
 export const contestBtn = need<HTMLButtonElement>("contestBtn");
 export const winBtn = need<HTMLButtonElement>("winBtn");
 export const loseBtn = need<HTMLButtonElement>("loseBtn");
 export const runAgainBtn = need<HTMLButtonElement>("runAgainBtn");
+export const runBoardBtn = need<HTMLButtonElement>("runBoardBtn");
 export const runHomeBtn = need<HTMLButtonElement>("runHomeBtn");

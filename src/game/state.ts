@@ -29,6 +29,8 @@ export const game = {
   levelShots: 0,
   levelLivesLost: 0,
   log: [] as LevelStats[],
+  /** Server-issued token for the contest run in progress; null when unsubmittable. */
+  runToken: null as string | null,
 
   spawnTimer: 0,
   nextSpawn: 0,

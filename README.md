@@ -20,7 +20,7 @@ npm install
 npm run dev        # local dev server with hot reload
 npm run build      # typecheck, then bundle to dist/
 npm run preview    # serve the production build
-npm test           # scoring and validation rules
+npm test           # rules, API, and leaderboard UI
 npm run smoke      # build, then play both modes headlessly in jsdom
 npm run check      # all three
 ```
@@ -45,10 +45,12 @@ npm run check      # all three
 | `src/game/images.ts` | Head cutout loading and trim |
 | `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
 | `src/render/` | Canvas drawing: shapes, the scene, and the overlay portraits |
-| `src/ui/` | DOM refs, HUD, level banner, and screen transitions |
+| `src/ui/` | DOM refs, HUD, banner, screens, and the leaderboard |
+| `src/net/api.ts` | Calls to the leaderboard endpoints |
 | `netlify/functions/` | The leaderboard API — token issue, submission, standings |
 | `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |
-| `test/` | Rule tests, API tests, and the headless boot check |
+| `test/harness.mjs` | Boots the built bundle in jsdom for the UI tests |
+| `test/` | Rule, API, and UI tests, plus the headless boot check |
 | `public/assets/ryan-head-floating.png` | Head cutout (300×300, transparent background) |
 | `netlify.toml` | Netlify build and publish config |
 
@@ -100,6 +102,20 @@ more than grinding the early levels.
 
 The level you die on still pays for the holes you sank — progress counts — but none of the
 bonuses. Full rules and the numbers live in `shared/scoring.ts`.
+
+## Running the API locally
+
+`npm run dev` serves the game only, so the leaderboard reports itself as offline —
+which is a valid state to test. To run the functions too, use the Netlify CLI:
+
+```sh
+npm i -g netlify-cli
+netlify link          # once, to connect this folder to the site
+netlify dev           # game plus /api/* on one port
+```
+
+`netlify dev` pulls the environment variables down from the linked site, so there
+is no local copy of the service key to leak.
 
 ## Leaderboard backend
 

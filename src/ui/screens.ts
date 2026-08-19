@@ -6,8 +6,10 @@ import { bankLevel, runSummary, startRun } from "../game/progression";
 import { game } from "../game/state";
 import { store } from "../game/storage";
 import { burstConfetti, reset } from "../game/world";
+import { requestRunToken } from "../net/api";
 import { hideBanner, showBanner } from "./banner";
 import {
+  boardScreen,
   hud,
   loseScreen,
   loseStats,
@@ -20,12 +22,14 @@ import {
   winStats,
 } from "./dom";
 import { formatPoints, updateHud } from "./hud";
+import { armSubmission, formatDuration, loadBoard } from "./leaderboard";
 
 function hideOverlays(): void {
   startScreen.hidden = true;
   winScreen.hidden = true;
   loseScreen.hidden = true;
   runScreen.hidden = true;
+  boardScreen.hidden = true;
 }
 
 export function startGame(mode: GameMode): void {
@@ -36,7 +40,16 @@ export function startGame(mode: GameMode): void {
   reset();
   startRun(mode);
   game.state = STATE.PLAYING;
-  if (mode === MODE.CONTEST) showBanner("Level 1", game.cfg.name);
+
+  if (mode === MODE.CONTEST) {
+    showBanner("Level 1", game.cfg.name);
+    // Ask for the token as play begins, so the server has its own clock on the
+    // run. If it never arrives the run is simply not submittable.
+    game.runToken = null;
+    void requestRunToken().then((token) => {
+      game.runToken = token;
+    });
+  }
 }
 
 /** Return to the start screen without playing a round. */
@@ -49,6 +62,13 @@ export function showStart(): void {
   reset();
   updateHud();
   startScreen.hidden = false;
+}
+
+/** Open the standings. `from` is the screen to return to. */
+export function showBoard(): void {
+  hideOverlays();
+  boardScreen.hidden = false;
+  void loadBoard();
 }
 
 function bumpRounds(): number {
@@ -117,24 +137,37 @@ export function endRun(): void {
   runHeadline.textContent = `${formatPoints(summary.points)} points`;
   runStats.textContent =
     `Reached ${levelConfig(summary.levelReached).name} (level ${summary.levelReached})` +
-    ` · ${summary.holesSunk} holes · ${(summary.durationMs / 1000).toFixed(0)}s` +
+    ` · ${summary.holesSunk} holes · ${formatDuration(summary.durationMs)}` +
     (isBest ? " · new personal best! 🏆" : ` · Best: ${formatPoints(best)}`);
 
-  runBreakdown.innerHTML = summary.levels
-    .map((s) => {
+  runBreakdown.replaceChildren(
+    ...summary.levels.map((s) => {
       const cfg = levelConfig(s.level);
       const sc = scoreLevel(s);
       const cleared = s.holes >= cfg.holesToClear;
       const tags = [
         cleared ? "cleared" : `${s.holes}/${cfg.holesToClear}`,
         sc.flawless > 0 ? "flawless" : "",
-        sc.speed > 0 ? `under par` : "",
-      ]
-        .filter(Boolean)
-        .join(" · ");
-      return `<li><span class="lvl">${cfg.name}</span><span class="tags">${tags}</span><span class="pts">${formatPoints(sc.total)}</span></li>`;
-    })
-    .join("");
+        sc.speed > 0 ? "under par" : "",
+      ].filter(Boolean);
+
+      const li = document.createElement("li");
+      const span = (cls: string, text: string): HTMLElement => {
+        const el = document.createElement("span");
+        el.className = cls;
+        el.textContent = text;
+        return el;
+      };
+      li.append(
+        span("lvl", cfg.name),
+        span("tags", tags.join(" · ")),
+        span("pts", formatPoints(sc.total)),
+      );
+      return li;
+    }),
+  );
+
+  armSubmission(summary, game.runToken);
 
   setTimeout(() => {
     if (game.state === STATE.LOSE) runScreen.hidden = false;

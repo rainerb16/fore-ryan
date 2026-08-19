@@ -41,6 +41,7 @@
       <button class="big" id="startBtn" type="button">Tee Off ⛳</button>
       <button class="big alt" id="contestBtn" type="button">Contest Mode 🏆</button>
     </div>
+    <button class="link" id="boardBtn" type="button">🏆 View the leaderboard</button>
     <p class="sub" id="startHint"></p>
   </div>
 
@@ -65,10 +66,33 @@
     <h1 id="runHeadline">0 points</h1>
     <p class="sub" id="runStats"></p>
     <ul class="scorecard" id="runBreakdown"></ul>
+
+    <form class="entry" id="submitForm">
+      <div class="fields">
+        <input id="nameInput" type="text" maxlength="40" placeholder="Your name"
+               autocomplete="name" autocapitalize="words" required>
+        <input id="emailInput" type="email" placeholder="Work email"
+               autocomplete="email" autocapitalize="off" required>
+      </div>
+      <button class="big" id="submitBtn" type="submit">Post to Leaderboard 🏆</button>
+      <p class="fineprint">Your email is hashed and never shown — it only keeps one
+        person from filling the top ten.</p>
+    </form>
+    <p class="sub" id="submitStatus" aria-live="polite"></p>
+
     <div class="modes">
       <button class="big" id="runAgainBtn" type="button">Play Again 🏆</button>
+      <button class="big alt" id="runBoardBtn" type="button">Standings</button>
       <button class="big alt" id="runHomeBtn" type="button">Back</button>
     </div>
+  </div>
+
+  <div class="overlay" id="boardScreen" hidden>
+    <p class="kicker">🏆 Leaderboard</p>
+    <h1>Standings</h1>
+    <ol class="board" id="boardList"></ol>
+    <p class="sub" id="boardStatus" aria-live="polite"></p>
+    <button class="big alt" id="boardBackBtn" type="button">Back</button>
   </div>
 </div>
 

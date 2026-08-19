@@ -1,9 +1,20 @@
-import { canvas } from "../ui/dom";
+import { boardScreen, canvas } from "../ui/dom";
 import { startGame } from "../ui/screens";
 import { STATE } from "./config";
 import { game, keys, player } from "./state";
 
+/**
+ * The movement and fire keys are plain letters and space, so while someone is
+ * filling in the leaderboard form these handlers must keep their hands off —
+ * otherwise preventDefault swallows the characters they are typing.
+ */
+const isTyping = (e: KeyboardEvent): boolean => {
+  const el = e.target as HTMLElement | null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
+};
+
 window.addEventListener("keydown", (e) => {
+  if (isTyping(e)) return;
   const k = e.key.toLowerCase();
   if (k === "arrowleft" || k === "a") {
     keys.left = true;
@@ -18,11 +29,13 @@ window.addEventListener("keydown", (e) => {
   if (k === " " || k === "enter") {
     e.preventDefault();
     if (game.state === STATE.PLAYING) game.firing = true;
-    else startGame(game.mode);
+    // Enter on the standings would otherwise start a run behind the overlay.
+    else if (boardScreen.hidden) startGame(game.mode);
   }
 });
 
 window.addEventListener("keyup", (e) => {
+  if (isTyping(e)) return;
   const k = e.key.toLowerCase();
   if (k === "arrowleft" || k === "a") keys.left = false;
   if (k === "arrowright" || k === "d") keys.right = false;
