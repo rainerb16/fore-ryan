@@ -167,6 +167,33 @@ test("the backdrop changes when you reach a new level", async () => {
   assert.notEqual(decor(), levelOneDecor, "a new level should change the scenery");
 });
 
+test("hazards are reskinned per level", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  const levelNow = () => Number(g.text("level").replace(/\D/g, ""));
+
+  g.click("contestBtn");
+  g.holdFire();
+  await g.tick(300); // a few seconds of level 1
+
+  const levelOne = new Set(g.drawnText);
+  assert.ok(levelOne.has("💧") || levelOne.has("🌳"), "level 1 keeps the original hazards");
+
+  // Clear only once the level has actually turned over, or the recording still
+  // holds glyphs drawn during the tail of level 1.
+  for (let i = 0; i < 12 && levelNow() < 2; i++) await g.tick(120);
+  assert.ok(levelNow() >= 2, "should have advanced a level");
+
+  g.drawnText.length = 0;
+  await g.tick(90);
+
+  const drawn = new Set(g.drawnText);
+  assert.ok(drawn.size > 0, "hazards should still be drawing");
+  assert.ok(!drawn.has("💧"), `level ${levelNow()} still drew the level 1 droplet`);
+  assert.ok(!drawn.has("🌳"), `level ${levelNow()} still drew the level 1 tree`);
+});
+
 test("the birthday round always uses the level 1 look", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });

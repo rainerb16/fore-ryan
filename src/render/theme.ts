@@ -1,9 +1,20 @@
-// Each level gets its own sky. The canvas itself is transparent — the backdrop
-// is a stack of gradients on #stage driven by custom properties — so a theme is
-// just a set of colours plus the four bits of scenery in the corners.
+// Each level gets its own sky and its own hazards. The canvas itself is
+// transparent — the backdrop is a stack of gradients on #stage driven by custom
+// properties — so a theme is a set of colours, the four bits of corner scenery,
+// and the glyphs the two hazard slots are drawn as.
+//
+// Reskinning a hazard changes nothing about how it behaves: the type still
+// drives spawn weighting and collision, and the server never sees any of this.
 
-import { AUTHORED_LEVELS } from "../../shared/rules";
+import { AUTHORED_LEVELS, type HazardType } from "../../shared/rules";
 import { decorEls, stage } from "../ui/dom";
+
+interface HazardLook {
+  /** What gets drawn. Keep it chunky — players have to dodge it. */
+  glyph: string;
+  /** Colour of the sparks thrown when it blocks a shot or lands a hit. */
+  spark: string;
+}
 
 export interface Theme {
   /** Top-left and top-right glows. */
@@ -19,6 +30,7 @@ export interface Theme {
   fairwayTop: string;
   fairwayBottom: string;
   decor: readonly [string, string, string, string];
+  hazards: Record<HazardType, HazardLook>;
 }
 
 /** Level 1 is the birthday round, so its look is the original one, untouched. */
@@ -33,6 +45,10 @@ const DRIVING_RANGE: Theme = {
   fairwayTop: "rgba(38,120,84,0)",
   fairwayBottom: "rgba(46,142,96,.26)",
   decor: ["⛳", "🎈", "🏌️", "🎈"],
+  hazards: {
+    water: { glyph: "💧", spark: "#7fd4ff" },
+    tree: { glyph: "🌳", spark: "#8fd18a" },
+  },
 };
 
 const FRONT_NINE: Theme = {
@@ -46,6 +62,12 @@ const FRONT_NINE: Theme = {
   fairwayTop: "rgba(60,150,96,0)",
   fairwayBottom: "rgba(86,176,110,.28)",
   decor: ["⛳", "🌅", "🏌️", "🎈"],
+  hazards: {
+    // Deliberately not the level 1 droplet — the first level change should be
+    // unmistakable, and 💦 next to 💧 is not.
+    water: { glyph: "🌧️", spark: "#9fd8ff" },
+    tree: { glyph: "🌾", spark: "#d9c86a" },
+  },
 };
 
 const WATER_HAZARD: Theme = {
@@ -59,6 +81,10 @@ const WATER_HAZARD: Theme = {
   fairwayTop: "rgba(40,150,170,0)",
   fairwayBottom: "rgba(60,180,200,.28)",
   decor: ["💧", "🌊", "⛳", "🐟"],
+  hazards: {
+    water: { glyph: "🌊", spark: "#7fd4ff" },
+    tree: { glyph: "🦆", spark: "#e0b070" },
+  },
 };
 
 const THE_WOODS: Theme = {
@@ -72,6 +98,10 @@ const THE_WOODS: Theme = {
   fairwayTop: "rgba(30,110,60,0)",
   fairwayBottom: "rgba(48,140,80,.30)",
   decor: ["🌲", "🌳", "⛳", "🦌"],
+  hazards: {
+    water: { glyph: "🍂", spark: "#e09a5a" },
+    tree: { glyph: "🌲", spark: "#6fbf7f" },
+  },
 };
 
 const CHAMPIONSHIP: Theme = {
@@ -85,6 +115,11 @@ const CHAMPIONSHIP: Theme = {
   fairwayTop: "rgba(90,80,160,0)",
   fairwayBottom: "rgba(120,105,190,.26)",
   decor: ["🏆", "⛳", "🎖️", "🎉"],
+  hazards: {
+    // Errant golfers and marker flags, on a course that has stopped being polite.
+    water: { glyph: "🏌️", spark: "#ffd166" },
+    tree: { glyph: "🚩", spark: "#ff8080" },
+  },
 };
 
 // Past the authored levels the tail alternates between these two, matching the
@@ -101,6 +136,10 @@ const SUDDEN_DEATH_NIGHT: Theme = {
   fairwayTop: "rgba(60,70,140,0)",
   fairwayBottom: "rgba(80,95,170,.26)",
   decor: ["🌙", "⛳", "⭐", "🌙"],
+  hazards: {
+    water: { glyph: "❄️", spark: "#bfe6ff" },
+    tree: { glyph: "⭐", spark: "#ffe9a3" },
+  },
 };
 
 const SUDDEN_DEATH_FIRE: Theme = {
@@ -114,6 +153,10 @@ const SUDDEN_DEATH_FIRE: Theme = {
   fairwayTop: "rgba(150,50,60,0)",
   fairwayBottom: "rgba(190,70,80,.26)",
   decor: ["🔥", "⛳", "💀", "🔥"],
+  hazards: {
+    water: { glyph: "☄️", spark: "#ffcf7a" },
+    tree: { glyph: "🌋", spark: "#ff7a4d" },
+  },
 };
 
 const AUTHORED_THEMES: readonly Theme[] = [
@@ -131,8 +174,11 @@ export function themeFor(level: number): Theme {
   return t % 2 === 1 ? SUDDEN_DEATH_NIGHT : SUDDEN_DEATH_FIRE;
 }
 
-/** Read by the scene renderer for the fairway band. Reassigned by applyTheme. */
+/** Read by the renderer and the collision code. Reassigned by applyTheme. */
 export let activeTheme: Theme = DRIVING_RANGE;
+
+export const hazardGlyph = (type: HazardType): string => activeTheme.hazards[type].glyph;
+export const hazardSpark = (type: HazardType): string => activeTheme.hazards[type].spark;
 
 export function applyTheme(level: number): void {
   const theme = themeFor(level);

@@ -1,4 +1,4 @@
-# Fore Ryan! ⛳🎉
+XXROWXX# Fore Ryan! ⛳🎉
 
 A browser game. Ryan's floating head launches golf balls at holes sliding across the top of
 the screen while dodging falling trees and water hazards.
@@ -20,7 +20,7 @@ npm install
 npm run dev        # local dev server with hot reload
 npm run build      # typecheck, then bundle to dist/
 npm run preview    # serve the production build
-npm test           # rules, API, and leaderboard UI
+npm test           # build, then rules, API, and leaderboard UI
 npm run smoke      # build, then play both modes headlessly in jsdom
 npm run check      # all three
 ```
@@ -75,18 +75,23 @@ resets to normal at the start of every level.
 Five levels are hand-tuned in `shared/rules.ts`; past those the tail is generated from the
 last one and keeps tightening on every axis with no plateau.
 
-| Level | Name | Holes | Flavour | Backdrop |
+| Level | Name | Holes | Backdrop | Hazards |
 | --- | --- | --- | --- | --- |
-| 1 | Driving Range | 5 | The birthday round — unchanged from the original game | Purple night |
-| 2 | Front Nine | 6 | Faster cups, tighter hazard spacing | Sunrise |
-| 3 | Water Hazard | 7 | Three cups, mostly water | Deep teal |
-| 4 | The Woods | 8 | Mostly trees | Dark forest |
-| 5 | Championship | 9 | Everything at once | Royal and gold |
-| 6+ | Sudden Death | up to 12 | Generated, tightening without limit | Midnight / fire, alternating |
+| 1 | Driving Range | 5 | Purple night | 💧 🌳 |
+| 2 | Front Nine | 6 | Sunrise | 🌧️ 🌾 |
+| 3 | Water Hazard | 7 | Deep teal | 🌊 🦆 |
+| 4 | The Woods | 8 | Dark forest | 🍂 🌲 |
+| 5 | Championship | 9 | Royal and gold | 🏌️ 🚩 |
+| 6+ | Sudden Death | up to 12 | Midnight / fire, alternating | ❄️ ⭐ / ☄️ 🌋 |
 
-Each level starts from a clean board, its own difficulty baseline, and its own sky; a timed
-ramp then builds pressure within the level. Backdrops live in `src/render/theme.ts` — they
-are client-only, so the server never needs to know about them.
+Level 1 is the birthday round and is unchanged from the original game. Each level starts
+from a clean board, its own difficulty baseline, and its own sky; a timed ramp then builds
+pressure within the level.
+
+Themes live in `src/render/theme.ts` and are client-only — the server never needs to know
+about them. Reskinning a hazard changes nothing about how it behaves: there are still only
+two hazard slots, and the slot drives spawn weighting and collision. Only the glyph and its
+spark colour change, so a level can look completely different while scoring identically.
 
 ### Why the tail has no ceiling
 

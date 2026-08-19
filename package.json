@@ -8,9 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p netlify/tsconfig.json",
-    "test": "node --test test/*.test.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
     "smoke": "npm run build && node test/smoke.mjs",
-    "check": "npm run typecheck && npm test && npm run smoke"
+    "check": "npm run typecheck && npm run build && node --test test/*.test.mjs && node test/smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

@@ -20,6 +20,7 @@ import {
   STATE,
 } from "./config";
 import { clampPlayer, headHalfH, headRadius, holeRX } from "./metrics";
+import { hazardSpark } from "../render/theme";
 import { bankLevel, beginLevel, isContest } from "./progression";
 import { rand } from "./rng";
 import { confetti, game, hazards, holes, keys, player, shots, sparks } from "./state";
@@ -88,7 +89,7 @@ function updateShots(dt: number): boolean {
         dx * dx + (h.y - s.y) ** 2 <= rr * rr || dx * dx + (h.y - midY) ** 2 <= rr * rr;
       if (hit) {
         shots.splice(i, 1);
-        addSparks(s.x, s.y, h.type === "water" ? "#7fd4ff" : "#8fd18a");
+        addSparks(s.x, s.y, hazardSpark(h.type));
         sfx.block();
         break;
       }
@@ -133,7 +134,7 @@ function updateHazards(dt: number): boolean {
       game.shake = SHAKE_MS;
       player.spinT = SPIN_MS;
       player.spinDir = Math.random() < 0.5 ? -1 : 1;
-      addSparks(h.x, h.y, h.type === "water" ? "#7fd4ff" : "#8fd18a", 14);
+      addSparks(h.x, h.y, hazardSpark(h.type), 14);
       sfx.hit();
       updateHud();
       if (game.lives <= 0) return true;

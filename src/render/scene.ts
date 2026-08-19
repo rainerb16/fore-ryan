@@ -1,10 +1,10 @@
-import { EMOJI_FONT, FINALE_MS, HAZARD_EMOJI, SHAKE_MS, SPIN_MS, STATE } from "../game/config";
+import { EMOJI_FONT, FINALE_MS, SHAKE_MS, SPIN_MS, STATE } from "../game/config";
 import { headRadius } from "../game/metrics";
 import { rand } from "../game/rng";
 import { confetti, game, hazards, holes, player, shots, sparks } from "../game/state";
 import { ctx } from "../ui/dom";
 import { drawGolfBall, drawHead, drawHole } from "./shapes";
-import { activeTheme } from "./theme";
+import { activeTheme, hazardGlyph } from "./theme";
 
 function drawFairway(): void {
   const bandH = Math.min(game.H * 0.28, 190 * game.scale);
@@ -44,7 +44,7 @@ export function draw(): void {
     ctx.translate(h.x, h.y);
     ctx.rotate(h.rot);
     ctx.font = `${h.size}px ${EMOJI_FONT}`;
-    ctx.fillText(HAZARD_EMOJI[h.type], 0, 0);
+    ctx.fillText(hazardGlyph(h.type), 0, 0);
     ctx.restore();
   }
 

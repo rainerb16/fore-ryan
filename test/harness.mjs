@@ -6,13 +6,15 @@ import { JSDOM } from "jsdom";
 
 const gradient = { addColorStop() {} };
 
-function stubContext() {
+/** Records what was drawn as text, so tests can see which glyphs a level uses. */
+function stubContext(drawnText) {
   return new Proxy(
     {
       canvas: null,
       createLinearGradient: () => gradient,
       createRadialGradient: () => gradient,
       measureText: () => ({ width: 10 }),
+      fillText: (text) => drawnText.push(text),
     },
     {
       get: (target, prop) => (prop in target ? target[prop] : () => {}),
@@ -41,7 +43,8 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
   const { window } = dom;
   const doc = window.document;
 
-  window.HTMLCanvasElement.prototype.getContext = () => stubContext();
+  const drawnText = [];
+  window.HTMLCanvasElement.prototype.getContext = () => stubContext(drawnText);
   Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { get: () => 1024 });
   Object.defineProperty(window.HTMLElement.prototype, "clientHeight", { get: () => 720 });
 
@@ -108,5 +111,19 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
   /** endRun and endLose both park the HUD before their overlay timer runs. */
   const roundOver = () => el("hud").classList.contains("pregame");
 
-  return { window, doc, el, text, click, settle, tick, holdFire, type, submit, roundOver, errors };
+  return {
+    window,
+    doc,
+    el,
+    text,
+    click,
+    settle,
+    tick,
+    holdFire,
+    type,
+    submit,
+    roundOver,
+    errors,
+    drawnText,
+  };
 }

@@ -2,8 +2,6 @@
 export { HAZARDS, SHOT_COOLDOWN, START_LIVES } from "../../shared/rules";
 export type { HazardType } from "../../shared/rules";
 
-import type { HazardType } from "../../shared/rules";
-
 // --- assets -----------------------------------------------------------------
 // To use a different photo: point HEAD_IMAGE_SRC at it and set HEAD_TRIM to null.
 export const HEAD_IMAGE_SRC = "assets/ryan-head-floating.png";
@@ -42,7 +40,6 @@ export const FINALE_MS = 750;      // slow-motion beat on the winning shot
 export const FINALE_SLOW = 0.25;
 export const BANNER_MS = 1600;     // level-change banner dwell time
 
-export const HAZARD_EMOJI: Record<HazardType, string> = { water: "💧", tree: "🌳" };
 export const EMOJI_FONT = '"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji","Twemoji Mozilla",sans-serif';
 export const CONFETTI_COLORS = ["#ff6fa3", "#a78bfa", "#ffd166", "#4ecdc4", "#ff9f68", "#ffffff"];
 
