@@ -14,6 +14,17 @@ const fail = (msg) => {
 
 if (g.errors.length) fail("threw during bootstrap");
 if (!g.text("startHint")) fail("startHint never populated — bootstrap did not finish");
+
+// The shell colours must be inline in the head, ahead of the stylesheet link, or
+// the browser paints a white page before the styles land.
+const head = g.doc.head.innerHTML;
+const inlineStyle = g.doc.querySelector("head style");
+if (!inlineStyle || !/background:\s*#0b0720/.test(inlineStyle.textContent)) {
+  fail("the head lost its inline background — the page will flash white on load");
+}
+if (head.indexOf("<style") > head.indexOf("stylesheet")) {
+  fail("the inline style must come before the stylesheet link");
+}
 console.log("boot ok            :", g.text("startHint"));
 
 // --- birthday round ---------------------------------------------------------

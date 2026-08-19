@@ -3,7 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0720">
 <title>Fore Ryan!</title>
+<style>
+  /* Inline, so the very first paint is already dark. The real stylesheet is
+     injected by JS in dev and linked from the build, and either way there is a
+     moment before it applies — without this the browser paints white first.
+     These must stay in step with the same rules in src/styles.css. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0b0720;
+  }
+  body {
+    color: #f2ecff;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+</style>
 </head>
 <body>
 
