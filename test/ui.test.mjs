@@ -271,6 +271,51 @@ test("contest runs get five lives, the birthday round keeps three", async () => 
   assert.equal(hearts(), 3, "returning home goes back to the birthday round");
 });
 
+test("the birthday round is not a dead end", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("startBtn");
+  g.holdFire();
+  for (let i = 0; i < 40 && !g.roundOver(); i++) await g.tick(300);
+  assert.ok(g.roundOver(), "the birthday round should have finished");
+  await g.settle(600);
+
+  // It can end either way; whichever screen came up must offer a way out.
+  const screen = g.el("winScreen").hidden ? "lose" : "win";
+  assert.equal(g.el(`${screen}Screen`).hidden, false);
+
+  g.click(`${screen}HomeBtn`);
+  assert.equal(g.el("startScreen").hidden, false, "Back should reach the start screen");
+  assert.equal(g.el(`${screen}Screen`).hidden, true);
+
+  // And the contest is reachable in one click from there too.
+  g.click("contestBtn");
+  assert.equal(g.el("level").hidden, false, "a contest run should have started");
+});
+
+test("the contest can be started straight from a finished birthday round", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("startBtn");
+  g.holdFire();
+  for (let i = 0; i < 40 && !g.roundOver(); i++) await g.tick(300);
+  await g.settle(600);
+
+  const screen = g.el("winScreen").hidden ? "lose" : "win";
+  g.click(`${screen}ContestBtn`);
+  await g.settle(20);
+
+  assert.equal(g.el(`${screen}Screen`).hidden, true);
+  assert.equal(g.el("level").hidden, false);
+  assert.equal(g.text("level"), "LVL 1");
+  assert.ok(
+    api.calls.some((c) => c.path === "/api/run-start"),
+    "the contest run should have asked for a token",
+  );
+});
+
 test("a contest run asks for a token as play begins", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
