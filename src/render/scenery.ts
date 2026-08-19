@@ -1,10 +1,7 @@
-// The horizon behind the play area: a silhouette that matches the course name,
-// painted procedurally so there are still no image files to ship.
-//
-// It is rendered once into an offscreen canvas and blitted each frame, because
-// the shapes only change when the level or the viewport does. Layout comes from
-// a seeded generator rather than Math.random, or the hills would crawl about
-// between frames.
+// The horizon behind the play area: a silhouette matching the course name,
+// painted procedurally so there are no image files to ship. Rendered once into
+// an offscreen canvas and blitted, since it only changes with the level or the
+// viewport. Layout is seeded, or the hills would crawl between frames.
 
 import { activeTheme, type Theme } from "./theme";
 

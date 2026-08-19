@@ -102,7 +102,9 @@ export default async (req: Request): Promise<Response> => {
       },
     });
 
-    return json({ points: check.computedPoints });
+    // The handle lets the client ask for its own rank later without ever putting
+    // an email in a URL.
+    return json({ points: check.computedPoints, handle: emailHash });
   } catch (err) {
     console.error("submit-run failed", err);
     return fail(500, "Could not save that run");

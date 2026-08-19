@@ -42,14 +42,10 @@ export function runTotal(levels: readonly LevelStats[]): number {
 // --- validation -------------------------------------------------------------
 
 /**
- * Fastest the holes actually sunk could physically have been sunk: one shot each
- * at the fire-rate ceiling, plus a beat for the last ball to reach the cup.
- *
- * This scales with holes rather than with the level's target, because the level a
- * run ends on is usually cut short. Measuring it against a full clear would call
- * an ordinary quick death impossible — and the deeper the level, the more holes
- * it needs, so the higher someone climbed the more certainly their run would be
- * thrown out. Generous on purpose: this rejects fabricated scores, not players.
+ * Fastest the holes sunk could have been sunk: one shot each at the fire-rate
+ * ceiling, plus a beat for the last ball. Scales with holes rather than with the
+ * level's target, because the level a run ends on is cut short — measuring that
+ * against a full clear would call an ordinary quick death impossible.
  */
 export function minLevelMs(level: number, holes?: number): number {
   const cfg = levelConfig(level);

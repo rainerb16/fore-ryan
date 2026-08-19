@@ -44,9 +44,8 @@ export async function findToken(token: string): Promise<RunToken | null> {
 }
 
 /**
- * Mark a token used, but only if it is still unused. PostgREST returns the rows
- * it actually changed, so an empty result means someone else consumed it first —
- * that is the replay check, and it is atomic.
+ * Mark a token used, only if still unused. PostgREST returns the rows it changed,
+ * so an empty result means someone else got there first. That is the replay check.
  */
 export async function consumeToken(token: string): Promise<boolean> {
   const res = await rest(
@@ -102,6 +101,8 @@ export async function recentRunCount(emailHash: string): Promise<number> {
 }
 
 export interface LeaderboardRow {
+  /** Never sent to the browser — the endpoint copies out named fields only. */
+  email_hash: string;
   display_name: string;
   points: number;
   level_reached: number;
@@ -112,17 +113,31 @@ export interface LeaderboardRow {
 
 export async function topRuns(limit: number): Promise<LeaderboardRow[]> {
   const res = await rest(
-    `leaderboard?select=display_name,points,level_reached,levels_cleared,duration_ms,created_at` +
+    `leaderboard?select=email_hash,display_name,points,level_reached,levels_cleared,duration_ms,created_at` +
       `&order=points.desc,duration_ms.asc&limit=${limit}`,
   );
   return (await res.json()) as LeaderboardRow[];
+}
+
+/**
+ * Where a run stands overall, for someone below the listed cut. Counts what beats
+ * it on the board's own ordering. Both values come from the database.
+ */
+export async function rankOf(row: LeaderboardRow): Promise<number> {
+  const beats =
+    `or=(points.gt.${row.points},` +
+    `and(points.eq.${row.points},duration_ms.lt.${row.duration_ms}))`;
+  const res = await rest(`leaderboard?select=email_hash&${beats}`, {
+    headers: { Prefer: "count=exact", Range: "0-0" },
+  });
+  return Number(res.headers.get("content-range")?.split("/")[1] ?? 0) + 1;
 }
 
 /** Best run for one person, so the client can show "your best" alongside the top list. */
 export async function personalBest(emailHash: string): Promise<LeaderboardRow | null> {
   const res = await rest(
     `leaderboard?email_hash=eq.${encodeURIComponent(emailHash)}` +
-      `&select=display_name,points,level_reached,levels_cleared,duration_ms,created_at&limit=1`,
+      `&select=email_hash,display_name,points,level_reached,levels_cleared,duration_ms,created_at&limit=1`,
   );
   const [row] = (await res.json()) as LeaderboardRow[];
   return row ?? null;

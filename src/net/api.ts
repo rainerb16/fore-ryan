@@ -1,5 +1,5 @@
-// Talks to the Netlify Functions. Every call degrades quietly: the game is
-// playable with the backend down, you just cannot submit while it is.
+// Talks to the Netlify Functions. Every call degrades quietly: the game stays
+// playable with the backend down, you just cannot post a score.
 
 import type { RunSummary } from "../../shared/types";
 
@@ -17,29 +17,28 @@ export interface LeaderboardData {
   top: LeaderboardEntry[];
   mine: LeaderboardEntry | null;
   /** ISO timestamp the contest closes, or null if it runs indefinitely. */
-  closesAt?: string | null;
-  closed?: boolean;
+  closesAt: string | null;
+  closed: boolean;
 }
 
 export type SubmitResult =
-  | { ok: true; points: number }
+  | { ok: true; points: number; handle: string | null }
   | { ok: false; error: string };
 
-/** Pull the server's message out of an error response, falling back to our own. */
+/** The server's own message where there is one, ours otherwise. */
 async function errorFrom(res: Response, fallback: string): Promise<string> {
   try {
     const body = (await res.json()) as { error?: unknown };
     if (typeof body.error === "string" && body.error) return body.error;
   } catch {
-    // no JSON body — use the fallback
+    // no JSON body
   }
   return fallback;
 }
 
 /**
- * Asked for as a contest run begins, so the server knows when play started.
- * Returns null if the backend is unreachable — the run is then unsubmittable
- * but still perfectly playable.
+ * Asked for as a contest run begins, so the server has its own clock on it.
+ * Null means the backend is unreachable: the run is unsubmittable but playable.
  */
 export async function requestRunToken(): Promise<string | null> {
   try {
@@ -67,15 +66,19 @@ export async function submitRun(args: {
     if (!res.ok) {
       return { ok: false, error: await errorFrom(res, "Could not save that run") };
     }
-    const body = (await res.json()) as { points?: number };
-    return { ok: true, points: body.points ?? 0 };
+    const body = (await res.json()) as { points?: number; handle?: string };
+    return { ok: true, points: body.points ?? 0, handle: body.handle ?? null };
   } catch {
     return { ok: false, error: "No connection — your score was not saved" };
   }
 }
 
-export async function fetchLeaderboard(email?: string | null): Promise<LeaderboardData> {
-  const query = email ? `?email=${encodeURIComponent(email)}` : "";
+/**
+ * `handle` is the opaque id submit-run returns. Deliberately not the email: this
+ * is a GET, and query strings end up in access logs.
+ */
+export async function fetchLeaderboard(handle?: string | null): Promise<LeaderboardData> {
+  const query = handle ? `?handle=${encodeURIComponent(handle)}` : "";
 
   let res: Response;
   try {

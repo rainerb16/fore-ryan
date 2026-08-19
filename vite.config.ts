@@ -2,12 +2,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
 /**
- * In production Netlify serves netlify/functions at these paths. In dev nothing
- * would, so `npm run dev` would only ever exercise the offline path. This mounts
- * the same handlers on the Vite dev server, which means one command runs the
- * whole thing against a real Supabase project — no Netlify CLI, no deploy.
- *
- * Values come from a local .env file, which is gitignored.
+ * Mounts the same handlers Netlify runs, on the same paths, so `npm run dev`
+ * exercises the whole thing against a real Supabase project — no CLI, no deploy.
+ * Config comes from a gitignored .env.
  */
 // A Map, not an object literal: request paths are attacker-controlled, and
 // ROUTES["__proto__"] on a plain object resolves to something truthy.
@@ -83,9 +80,7 @@ function netlifyFunctionsDev(): Plugin {
 
 /**
  * Fills %SITE_URL% in index.html. Link previews need an absolute image URL, and
- * the domain is only known to the build — Netlify puts it in URL, or in
- * DEPLOY_PRIME_URL for a branch build. Locally there is no domain, so it
- * collapses to a relative path, which is fine because nothing scrapes localhost.
+ * only the build knows the domain. Locally it collapses to a relative path.
  */
 function siteUrlPlugin(): Plugin {
   return {

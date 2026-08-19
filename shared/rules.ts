@@ -98,15 +98,12 @@ export const AUTHORED_LEVELS: readonly LevelConfig[] = [
   },
 ];
 
-// Endless tail: extrapolate from the last authored level, tightening on every
-// axis with no plateau. A run therefore always ends — deep enough in, the level
-// becomes unsurvivable and the leaderboard separates players on skill rather
-// than on how long they were willing to sit there.
+// Endless tail: extrapolate from the last authored level with no plateau, so a
+// run always ends rather than becoming a test of stamina.
 //
-// The bounds below are safety rails, not difficulty caps, and sit far beyond any
-// level a person will reach. Past them the simulation itself would misbehave: a
-// hazard falling further than the player's own height between two frames could
-// cross it without ever registering a hit, which would make deep levels easier.
+// SAFETY holds rails, not difficulty caps — they sit past any reachable level.
+// Beyond them a hazard could fall further than the player is tall between two
+// frames and cross it unnoticed, making deep levels easier.
 const SAFETY = {
   /** A real cap — a very long level is tedious, not hard. */
   holesToClear: 12,

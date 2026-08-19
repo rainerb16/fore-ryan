@@ -32,16 +32,19 @@ async function bundle(entry, name, platform = "node") {
 
 const submitRun = (await bundle("netlify/functions/submit-run.ts", "submit-run")).default;
 const runStart = (await bundle("netlify/functions/run-start.ts", "run-start")).default;
+const leaderboard = (await bundle("netlify/functions/leaderboard.ts", "leaderboard")).default;
 const { runTotal } = await bundle("test/shared-entry.ts", "shared", "neutral");
 
 // --- fake PostgREST ---------------------------------------------------------
 
 let tokens;
 let runs;
+let board;
 
 function installFakeDatabase() {
   tokens = new Map();
   runs = [];
+  board = [];
 
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(process.env.SUPABASE_URL + "/rest/v1/", "");
@@ -88,6 +91,28 @@ function installFakeDatabase() {
       const since = Date.parse(decodeURIComponent(path.match(/created_at=gte\.([^&]+)/)[1]));
       const n = runs.filter((r) => r.email_hash === hash && r.created_at >= since).length;
       return ok([], { "content-range": "0-0/" + n });
+    }
+
+    // The leaderboard view: each person is already reduced to their best run.
+    if (path.startsWith("leaderboard?") && method === "GET") {
+      // Counting the runs that beat a given one, for a rank below the cut.
+      const beats = path.match(/points\.gt\.(\d+).+duration_ms\.lt\.(\d+)/);
+      if (beats) {
+        const [, pts, ms] = beats.map(Number);
+        const n = board.filter(
+          (r) => r.points > pts || (r.points === pts && r.duration_ms < ms),
+        ).length;
+        return ok([], { "content-range": "0-0/" + n });
+      }
+      const hash = path.match(/email_hash=eq\.([^&]+)/);
+      if (hash) return ok(board.filter((r) => r.email_hash === decodeURIComponent(hash[1])));
+
+      // The view is ordered and paged by the database, so the fake must be too.
+      const limit = Number(path.match(/limit=(\d+)/)?.[1] ?? board.length);
+      const ranked = [...board].sort(
+        (a, b) => b.points - a.points || a.duration_ms - b.duration_ms,
+      );
+      return ok(ranked.slice(0, limit));
     }
 
     if (path === "runs" && method === "POST") {
@@ -309,5 +334,87 @@ test("rejects a body that is not JSON", async () => {
 
 test("rejects GET", async () => {
   const res = await submitRun(new Request("https://example.com/api/submit-run"));
+  assert.equal(res.status, 405);
+});
+
+// --- leaderboard ------------------------------------------------------------
+
+const boardRow = (over = {}) => ({
+  email_hash: "0".repeat(64),
+  display_name: "Dana",
+  points: 18400,
+  level_reached: 7,
+  levels_cleared: 6,
+  duration_ms: 240000,
+  created_at: "2026-08-18T10:00:00Z",
+  ...over,
+});
+
+const getBoard = (query = "") =>
+  leaderboard(new Request(`https://example.com/api/leaderboard${query}`));
+
+test("the standings never expose anybody's email hash", async () => {
+  board.push(boardRow(), boardRow({ email_hash: "1".repeat(64), display_name: "Sam", points: 900 }));
+
+  const res = await getBoard();
+  const body = await res.json();
+
+  assert.equal(res.status, 200);
+  assert.equal(body.top.length, 2);
+  assert.ok(
+    !JSON.stringify(body).includes("0".repeat(64)),
+    "an identifier reached the browser",
+  );
+  for (const entry of body.top) assert.equal(entry.email_hash, undefined);
+});
+
+test("ranks are assigned in the order the view returns", async () => {
+  board.push(boardRow(), boardRow({ email_hash: "1".repeat(64), display_name: "Sam", points: 900 }));
+  const { top } = await (await getBoard()).json();
+  assert.deepEqual(top.map((r) => [r.rank, r.display_name]), [[1, "Dana"], [2, "Sam"]]);
+});
+
+test("a handle finds its own rank, and matches on identity not on score", async () => {
+  const mineHash = "1".repeat(64);
+  // Same name and same points as the leader: matching on those would collide.
+  board.push(boardRow(), boardRow({ email_hash: mineHash }));
+
+  const { mine } = await (await getBoard(`?handle=${mineHash}`)).json();
+  assert.equal(mine.rank, 2, "the second row is mine, despite identical name and score");
+  assert.equal(mine.email_hash, undefined);
+});
+
+test("someone with no posted run has no standing", async () => {
+  board.push(boardRow());
+  const { mine } = await (await getBoard(`?handle=${"2".repeat(64)}`)).json();
+  assert.equal(mine, null);
+});
+
+test("a run below the listed cut still gets its real rank", async () => {
+  const mineHash = "9".repeat(64);
+  // Thirty ahead of them, and only three are listed.
+  for (let i = 0; i < 30; i++) {
+    board.push(boardRow({ email_hash: String(i).padStart(64, "0"), points: 20000 - i }));
+  }
+  board.push(boardRow({ email_hash: mineHash, display_name: "Late Joiner", points: 300 }));
+
+  const { top, mine } = await (await getBoard(`?handle=${mineHash}&limit=3`)).json();
+  assert.equal(top.length, 3, "the list is capped");
+  assert.equal(mine.rank, 31, "counted against the whole board, not just the page");
+  assert.equal(mine.display_name, "Late Joiner");
+});
+
+test("anything that is not a handle is ignored", async () => {
+  board.push(boardRow());
+  for (const q of ["?handle=ryan@example.com", "?handle=../etc", "?handle=", "?email=ryan@x.com"]) {
+    const { mine } = await (await getBoard(q)).json();
+    assert.equal(mine, null, `${q} should not resolve to anyone`);
+  }
+});
+
+test("the leaderboard rejects anything but GET", async () => {
+  const res = await leaderboard(
+    new Request("https://example.com/api/leaderboard", { method: "POST" }),
+  );
   assert.equal(res.status, 405);
 });

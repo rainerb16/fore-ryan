@@ -1,10 +1,7 @@
-// Each level gets its own sky and its own hazards. The canvas itself is
-// transparent — the backdrop is a stack of gradients on #stage driven by custom
-// properties — so a theme is a set of colours, the four bits of corner scenery,
-// and the glyphs the two hazard slots are drawn as.
-//
-// Reskinning a hazard changes nothing about how it behaves: the type still
-// drives spawn weighting and collision, and the server never sees any of this.
+// Each level gets its own sky and hazards. The canvas is transparent and the
+// backdrop is gradients on #stage, so a theme is colours, corner scenery, and the
+// glyphs the two hazard slots draw as. Reskinning changes no behaviour: the slot
+// still drives spawn weighting and collision, and the server never sees it.
 
 import { AUTHORED_LEVELS, type HazardType } from "../../shared/rules";
 import { decorEls, stage } from "../ui/dom";

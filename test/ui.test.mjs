@@ -39,11 +39,11 @@ function fakeApi(routes = {}) {
 
   const fetch = async (url, init = {}) => {
     const path = String(url).split("?")[0];
-    calls.push({ path, method: init.method || "GET", body: init.body });
+    calls.push({ path, url: String(url), method: init.method || "GET", body: init.body });
 
     if (routes[path]) return routes[path](url, init);
     if (path === "/api/run-start") return ok({ token: "11111111-2222-3333-4444-555555555555" });
-    if (path === "/api/leaderboard") return ok({ top: ENTRIES, mine: null });
+    if (path === "/api/leaderboard") return ok({ top: ENTRIES, mine: null, closesAt: null, closed: false });
     if (path === "/api/submit-run") {
       // The real gate, not a rubber stamp.
       const result = validateRun(JSON.parse(init.body).summary);
@@ -53,7 +53,7 @@ function fakeApi(routes = {}) {
           { status: 422 },
         );
       }
-      return ok({ points: result.computedPoints });
+      return ok({ points: result.computedPoints, handle: "a".repeat(64) });
     }
     throw new Error(`unexpected request: ${path}`);
   };
@@ -440,6 +440,28 @@ test("the same run cannot be posted twice from the form", async () => {
   await g.settle(50);
 
   assert.equal(api.calls.filter((c) => c.path === "/api/submit-run").length, 1);
+});
+
+test("the work email never travels in a URL", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  await playContestRun(g);
+
+  g.type("nameInput", "Ryan B");
+  g.type("emailInput", "ryan@example.com");
+  g.submit("submitForm");
+  await g.settle(50);
+
+  // Query strings land in access logs. The address goes in a POST body, and the
+  // rank lookup uses the opaque handle the server hands back instead.
+  for (const call of api.calls) {
+    assert.ok(!call.url.includes("@"), `an address reached a URL: ${call.url}`);
+    assert.ok(!call.url.includes("ryan"), `an address reached a URL: ${call.url}`);
+  }
+
+  const board = api.calls.filter((c) => c.path === "/api/leaderboard");
+  assert.ok(board.length > 0, "the rank should have been looked up");
+  assert.ok(board.some((c) => c.url.includes("handle=")), "by handle");
 });
 
 test("the name and email are remembered for the next run", async () => {

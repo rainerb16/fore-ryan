@@ -22,8 +22,10 @@ import {
   winScreen,
   winStats,
 } from "./dom";
-import { formatPoints, updateHud } from "./hud";
-import { armSubmission, formatDuration, loadBoard } from "./leaderboard";
+import { row } from "./elements";
+import { formatDuration, formatPoints } from "./format";
+import { updateHud } from "./hud";
+import { armSubmission, loadBoard } from "./leaderboard";
 
 function hideOverlays(): void {
   startScreen.hidden = true;
@@ -44,8 +46,7 @@ export function startGame(mode: GameMode): void {
 
   if (mode === MODE.CONTEST) {
     showBanner("Level 1", game.cfg.name);
-    // Ask for the token as play begins, so the server has its own clock on the
-    // run. If it never arrives the run is simply not submittable.
+    // Asked for as play begins, so the server has its own clock on the run.
     game.runToken = null;
     void requestRunToken().then((token) => {
       game.runToken = token;
@@ -68,7 +69,7 @@ export function showStart(): void {
   startScreen.hidden = false;
 }
 
-/** Open the standings. `from` is the screen to return to. */
+/** Open the standings. */
 export function showBoard(): void {
   hideOverlays();
   boardScreen.hidden = false;
@@ -122,47 +123,31 @@ export function endLose(): void {
 
 // --- contest run ------------------------------------------------------------
 
-const cell = (className: string, text: string): HTMLElement => {
-  const el = document.createElement("span");
-  el.className = className;
-  el.textContent = text;
-  return el;
-};
+const COLUMNS = ["no", "course", "holes", "bonus", "pts"];
 
-const scorecardRow = (className: string, cells: string[]): HTMLLIElement => {
-  const li = document.createElement("li");
-  li.className = className;
-  const classes = ["no", "course", "holes", "bonus", "pts"];
-  li.append(...cells.map((text, i) => cell(classes[i], text)));
-  return li;
-};
-
-/**
- * A golf scorecard: one line per level, with the columns labelled. The bonuses
- * are spelled out rather than abbreviated, since the points only make sense if
- * you can see what earned them.
- */
+/** A golf scorecard: one labelled line per level, then the total. */
 function renderScorecard(summary: ReturnType<typeof runSummary>): void {
-  const header = scorecardRow("head", ["", "Course", "Holes", "Bonus", "Points"]);
-
   const rows = summary.levels.map((s) => {
     const cfg = levelConfig(s.level);
-    const sc = scoreLevel(s);
-    const bonus = [sc.flawless > 0 ? "no hits" : "", sc.speed > 0 ? "fast" : ""].filter(Boolean);
-    const reached = s.holes >= cfg.holesToClear;
+    const score = scoreLevel(s);
+    const cleared = s.holes >= cfg.holesToClear;
+    // Spelled out, since the points only make sense if you see what earned them.
+    const bonus = [score.flawless > 0 && "no hits", score.speed > 0 && "fast"].filter(Boolean);
 
-    const row = scorecardRow(reached ? "row" : "row unfinished", [
+    return row(cleared ? "row" : "row unfinished", COLUMNS, [
       String(s.level),
       cfg.name,
       `${s.holes}/${cfg.holesToClear}`,
-      bonus.length ? bonus.join(" + ") : reached ? "—" : "ran out of lives",
-      formatPoints(sc.total),
+      bonus.length ? bonus.join(" + ") : cleared ? "—" : "ran out of lives",
+      formatPoints(score.total),
     ]);
-    return row;
   });
 
-  const total = scorecardRow("total", ["", "Total", "", "", formatPoints(summary.points)]);
-  runBreakdown.replaceChildren(header, ...rows, total);
+  runBreakdown.replaceChildren(
+    row("head", COLUMNS, ["", "Course", "Holes", "Bonus", "Points"]),
+    ...rows,
+    row("total", COLUMNS, ["", "Total", "", "", formatPoints(summary.points)]),
+  );
 }
 
 /** Ends a contest run: bank the level in progress, then show the scorecard. */

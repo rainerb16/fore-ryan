@@ -18,9 +18,8 @@ export const clientIp = (req: Request): string | null =>
 const sha256 = (value: string): string => createHash("sha256").update(value).digest("hex");
 
 /**
- * Salted hash of the work email. Identifies a person across runs without the
- * address ever being stored or displayed, so the leaderboard cannot leak a
- * company directory. The salt lives only in Netlify's environment.
+ * Salted hash of the work email — identifies a person across runs without the
+ * address being stored, so the board cannot leak a company directory.
  */
 export const hashEmail = (email: string): string =>
   sha256(`${email.trim().toLowerCase()}|${env("EMAIL_HASH_SALT")}`);
@@ -31,8 +30,6 @@ export const hashIp = (ip: string | null): string | null =>
 /** Collapse whitespace, drop control characters, and cap the length. */
 export function cleanName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  // Strip control characters by code point rather than by regex literal, so the
-  // source file stays free of the bytes it is filtering out.
   const name = Array.from(raw)
     .filter((ch) => {
       const code = ch.codePointAt(0) ?? 0;
