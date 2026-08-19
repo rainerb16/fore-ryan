@@ -4,6 +4,6 @@ Thumbs.db
 node_modules/
 dist/
 
-# local Netlify env
+# local env — never commit real keys
 .env
 .netlify/

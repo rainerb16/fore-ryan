@@ -105,17 +105,15 @@ bonuses. Full rules and the numbers live in `shared/scoring.ts`.
 
 ## Running the API locally
 
-`npm run dev` serves the game only, so the leaderboard reports itself as offline —
-which is a valid state to test. To run the functions too, use the Netlify CLI:
+`npm run dev` serves the functions as well as the game. A Vite plugin mounts the
+same handlers Netlify will run on the same `/api/*` paths, compiled from source,
+so one command exercises the whole thing against a real Supabase project — no
+Netlify CLI and no deploy needed.
 
-```sh
-npm i -g netlify-cli
-netlify link          # once, to connect this folder to the site
-netlify dev           # game plus /api/* on one port
-```
+Copy `.env.example` to `.env` and fill in the three values. `.env` is gitignored.
 
-`netlify dev` pulls the environment variables down from the linked site, so there
-is no local copy of the service key to leak.
+With no `.env` the endpoints return a clean error and the game reports the
+leaderboard as offline, which is itself a state worth testing.
 
 ## Leaderboard backend
 
