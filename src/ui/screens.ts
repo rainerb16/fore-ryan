@@ -122,6 +122,49 @@ export function endLose(): void {
 
 // --- contest run ------------------------------------------------------------
 
+const cell = (className: string, text: string): HTMLElement => {
+  const el = document.createElement("span");
+  el.className = className;
+  el.textContent = text;
+  return el;
+};
+
+const scorecardRow = (className: string, cells: string[]): HTMLLIElement => {
+  const li = document.createElement("li");
+  li.className = className;
+  const classes = ["no", "course", "holes", "bonus", "pts"];
+  li.append(...cells.map((text, i) => cell(classes[i], text)));
+  return li;
+};
+
+/**
+ * A golf scorecard: one line per level, with the columns labelled. The bonuses
+ * are spelled out rather than abbreviated, since the points only make sense if
+ * you can see what earned them.
+ */
+function renderScorecard(summary: ReturnType<typeof runSummary>): void {
+  const header = scorecardRow("head", ["", "Course", "Holes", "Bonus", "Points"]);
+
+  const rows = summary.levels.map((s) => {
+    const cfg = levelConfig(s.level);
+    const sc = scoreLevel(s);
+    const bonus = [sc.flawless > 0 ? "no hits" : "", sc.speed > 0 ? "fast" : ""].filter(Boolean);
+    const reached = s.holes >= cfg.holesToClear;
+
+    const row = scorecardRow(reached ? "row" : "row unfinished", [
+      String(s.level),
+      cfg.name,
+      `${s.holes}/${cfg.holesToClear}`,
+      bonus.length ? bonus.join(" + ") : reached ? "—" : "ran out of lives",
+      formatPoints(sc.total),
+    ]);
+    return row;
+  });
+
+  const total = scorecardRow("total", ["", "Total", "", "", formatPoints(summary.points)]);
+  runBreakdown.replaceChildren(header, ...rows, total);
+}
+
 /** Ends a contest run: bank the level in progress, then show the scorecard. */
 export function endRun(): void {
   game.state = STATE.LOSE;
@@ -144,32 +187,7 @@ export function endRun(): void {
     ` · ${summary.holesSunk} holes · ${formatDuration(summary.durationMs)}` +
     (isBest ? " · new personal best! 🏆" : ` · Best: ${formatPoints(best)}`);
 
-  runBreakdown.replaceChildren(
-    ...summary.levels.map((s) => {
-      const cfg = levelConfig(s.level);
-      const sc = scoreLevel(s);
-      const cleared = s.holes >= cfg.holesToClear;
-      const tags = [
-        cleared ? "cleared" : `${s.holes}/${cfg.holesToClear}`,
-        sc.flawless > 0 ? "flawless" : "",
-        sc.speed > 0 ? "under par" : "",
-      ].filter(Boolean);
-
-      const li = document.createElement("li");
-      const span = (cls: string, text: string): HTMLElement => {
-        const el = document.createElement("span");
-        el.className = cls;
-        el.textContent = text;
-        return el;
-      };
-      li.append(
-        span("lvl", cfg.name),
-        span("tags", tags.join(" · ")),
-        span("pts", formatPoints(sc.total)),
-      );
-      return li;
-    }),
-  );
+  renderScorecard(summary);
 
   armSubmission(summary, game.runToken);
 

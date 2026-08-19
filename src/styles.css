@@ -289,41 +289,74 @@
     gap: 12px;
   }
 
+  /* A golf scorecard: aligned columns, one line per level, a sticky header so
+     the columns stay labelled while a long run scrolls. */
   .scorecard {
     list-style: none;
     margin: 0;
     padding: 0;
-    width: min(430px, 92vw);
-    max-height: 22vh;
+    width: min(460px, 94vw);
+    max-height: 30vh;
     overflow-y: auto;
-    font-size: 15px;
+    font-size: 14px;
     font-weight: 700;
+    text-align: left;
   }
   .scorecard li {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1.6ch minmax(0, 1fr) 3.4ch auto 6.5ch;
+    gap: 9px;
     align-items: baseline;
-    gap: 10px;
-    padding: 8px 14px;
-    border-radius: 12px;
+    padding: 8px 12px;
+    border-radius: 10px;
     background: rgba(255,255,255,.07);
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
-  .scorecard .lvl { flex: 0 0 auto; }
-  .scorecard .tags {
-    flex: 1 1 auto;
-    text-align: right;
-    font-size: 12px;
+  .scorecard .no { color: var(--muted); }
+  .scorecard .course {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .scorecard .holes { text-align: right; }
+  .scorecard .bonus {
+    font-size: 11px;
     font-weight: 600;
+    letter-spacing: .4px;
+    text-transform: uppercase;
+    text-align: right;
+    color: var(--muted);
+  }
+  .scorecard .pts {
+    text-align: right;
+    color: var(--gold);
+  }
+
+  .scorecard li.head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #241546;
+    font-size: 11px;
+    font-weight: 700;
     letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--muted);
   }
-  .scorecard .pts {
-    flex: 0 0 auto;
-    min-width: 5.5ch;
-    text-align: right;
-    color: var(--gold);
+  .scorecard li.head .holes,
+  .scorecard li.head .pts,
+  .scorecard li.head .bonus { color: var(--muted); }
+
+  /* The level the run ended on â€” it still scored, but it was not finished. */
+  .scorecard li.unfinished { background: rgba(255,111,163,.12); }
+  .scorecard li.unfinished .holes { color: var(--pink); }
+
+  .scorecard li.total {
+    background: rgba(255,209,102,.14);
+    border: 1px solid rgba(255,209,102,.32);
+    margin-bottom: 0;
   }
+  .scorecard li.total .course { color: var(--text); }
 
   .portrait {
     width: 210px;
@@ -352,7 +385,7 @@
     .portrait.dizzy, .portrait.party, .portrait.idle { animation: none; }
   }
 
-  /* keep overlays inside short screens — they can't scroll */
+  /* keep overlays inside short screens â€” they can't scroll */
   @media (max-height: 720px) {
     .portrait { width: 158px; }
     .overlay { gap: 11px; }

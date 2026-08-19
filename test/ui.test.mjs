@@ -281,6 +281,40 @@ test("a finished run posts the score and reports the rank", async () => {
   assert.equal(g.el("submitForm").hidden, true, "the form closes once the run is in");
 });
 
+test("the scorecard labels its columns and totals up", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  await playContestRun(g);
+
+  const card = g.el("runBreakdown");
+  const head = card.querySelector("li.head");
+  assert.ok(head, "the scorecard needs column headings");
+  assert.match(head.textContent, /Course/);
+  assert.match(head.textContent, /Holes/);
+  assert.match(head.textContent, /Points/);
+
+  const rows = [...card.querySelectorAll("li.row")];
+  assert.ok(rows.length >= 1, "at least one level should be listed");
+  // Every level shows how far it got, not just whether it was cleared.
+  for (const row of rows) {
+    assert.match(row.querySelector(".holes").textContent, /^\d+\/\d+$/);
+    assert.ok(row.querySelector(".course").textContent.length > 0);
+  }
+
+  // The level the run ended on is marked, and says why.
+  const last = rows[rows.length - 1];
+  assert.ok(last.className.includes("unfinished"), "the final level should be flagged");
+  assert.match(last.querySelector(".bonus").textContent, /ran out of lives/);
+
+  const total = card.querySelector("li.total");
+  assert.ok(total, "the scorecard needs a total");
+  assert.equal(
+    total.querySelector(".pts").textContent,
+    g.text("runHeadline").replace(" points", ""),
+    "the total must match the headline score",
+  );
+});
+
 test("a rejected run explains itself and leaves the form open", async () => {
   const api = fakeApi({
     "/api/submit-run": () =>

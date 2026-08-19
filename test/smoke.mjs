@@ -46,8 +46,10 @@ if (!g.roundOver()) fail("contest run never ended in ~5 minutes of play");
 await g.settle(600); // let the overlay's reveal timer fire
 if (g.el("runScreen").hidden) fail("run ended but the scorecard never appeared");
 
-const rows = g.el("runBreakdown").children.length;
-if (rows < 1) fail("run ended but the scorecard is empty");
+const rows = g.el("runBreakdown").querySelectorAll("li.row").length;
+if (rows < 1) fail("run ended but the scorecard has no levels on it");
+if (!g.el("runBreakdown").querySelector("li.head")) fail("the scorecard lost its column headings");
+if (!g.el("runBreakdown").querySelector("li.total")) fail("the scorecard lost its total");
 console.log("run over           :", g.text("runHeadline"), `· ${rows} levels on the card`);
 console.log("                    ", g.text("runStats"));
 
