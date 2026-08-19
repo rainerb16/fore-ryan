@@ -73,7 +73,7 @@ export async function recentTokenCount(ipHash: string): Promise<number> {
 
 export interface RunRow {
   display_name: string;
-  email_hash: string;
+  player_id: string;
   points: number;
   level_reached: number;
   levels_cleared: number;
@@ -89,11 +89,11 @@ export async function insertRun(row: RunRow): Promise<void> {
   await rest("runs", { method: "POST", body: JSON.stringify(row) });
 }
 
-/** Submissions from this person in the last hour, for rate limiting. */
-export async function recentRunCount(emailHash: string): Promise<number> {
+/** Submissions from this player in the last hour, for rate limiting. */
+export async function recentRunCount(playerId: string): Promise<number> {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const res = await rest(
-    `runs?email_hash=eq.${encodeURIComponent(emailHash)}&created_at=gte.${since}&select=id`,
+    `runs?player_id=eq.${encodeURIComponent(playerId)}&created_at=gte.${since}&select=id`,
     { headers: { Prefer: "count=exact", Range: "0-0" } },
   );
   const range = res.headers.get("content-range"); // "0-0/12"
@@ -102,7 +102,7 @@ export async function recentRunCount(emailHash: string): Promise<number> {
 
 export interface LeaderboardRow {
   /** Never sent to the browser — the endpoint copies out named fields only. */
-  email_hash: string;
+  player_id: string;
   display_name: string;
   points: number;
   level_reached: number;
@@ -113,7 +113,7 @@ export interface LeaderboardRow {
 
 export async function topRuns(limit: number): Promise<LeaderboardRow[]> {
   const res = await rest(
-    `leaderboard?select=email_hash,display_name,points,level_reached,levels_cleared,duration_ms,created_at` +
+    `leaderboard?select=player_id,display_name,points,level_reached,levels_cleared,duration_ms,created_at` +
       `&order=points.desc,duration_ms.asc&limit=${limit}`,
   );
   return (await res.json()) as LeaderboardRow[];
@@ -127,17 +127,17 @@ export async function rankOf(row: LeaderboardRow): Promise<number> {
   const beats =
     `or=(points.gt.${row.points},` +
     `and(points.eq.${row.points},duration_ms.lt.${row.duration_ms}))`;
-  const res = await rest(`leaderboard?select=email_hash&${beats}`, {
+  const res = await rest(`leaderboard?select=player_id&${beats}`, {
     headers: { Prefer: "count=exact", Range: "0-0" },
   });
   return Number(res.headers.get("content-range")?.split("/")[1] ?? 0) + 1;
 }
 
 /** Best run for one person, so the client can show "your best" alongside the top list. */
-export async function personalBest(emailHash: string): Promise<LeaderboardRow | null> {
+export async function personalBest(playerId: string): Promise<LeaderboardRow | null> {
   const res = await rest(
-    `leaderboard?email_hash=eq.${encodeURIComponent(emailHash)}` +
-      `&select=email_hash,display_name,points,level_reached,levels_cleared,duration_ms,created_at&limit=1`,
+    `leaderboard?player_id=eq.${encodeURIComponent(playerId)}` +
+      `&select=player_id,display_name,points,level_reached,levels_cleared,duration_ms,created_at&limit=1`,
   );
   const [row] = (await res.json()) as LeaderboardRow[];
   return row ?? null;

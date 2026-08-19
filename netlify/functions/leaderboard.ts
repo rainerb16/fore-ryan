@@ -3,13 +3,10 @@
 
 import { personalBest, rankOf, topRuns, type LeaderboardRow } from "./_db";
 import { contestEndsAt, contestIsClosed, LEADERBOARD_LIMIT } from "./_env";
-import { fail, json } from "./_http";
+import { fail, isUuid, json } from "./_http";
 
-/**
- * Callers identify themselves with the handle submit-run gave them, never an
- * address: query strings end up in access logs.
- */
-const isHandle = (v: string | null): v is string => v !== null && /^[0-9a-f]{64}$/.test(v);
+/** Callers identify themselves with the player id their browser generated. */
+const isHandle = (v: string | null): v is string => isUuid(v);
 
 /** Named fields only, so nothing new leaks if a column is added to the view. */
 const publicRow = (row: LeaderboardRow, rank: number | null) => ({
@@ -30,20 +27,20 @@ export default async (req: Request): Promise<Response> => {
     100,
     Math.max(1, Number(url.searchParams.get("limit")) || LEADERBOARD_LIMIT),
   );
-  const handle = url.searchParams.get("handle");
-  const mineHash = isHandle(handle) ? handle : null;
+  const handle = url.searchParams.get("player");
+  const playerId = isHandle(handle) ? handle : null;
 
   try {
     const [top, mine] = await Promise.all([
       topRuns(limit),
-      mineHash ? personalBest(mineHash) : Promise.resolve(null),
+      playerId ? personalBest(playerId) : Promise.resolve(null),
     ]);
 
     // Listed runs rank by position; one below the cut needs counting, or the
     // pinned row would show a dash where the whole point is the number.
     let mineRank: number | null = null;
     if (mine) {
-      const listed = top.findIndex((r) => r.email_hash === mine.email_hash);
+      const listed = top.findIndex((r) => r.player_id === mine.player_id);
       mineRank = listed >= 0 ? listed + 1 : await rankOf(mine);
     }
 

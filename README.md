@@ -171,7 +171,7 @@ The client is assumed to be hostile. A submission carries per-level stats, and
    after its token was issued.
 4. Consuming the token is a conditional update, so two racing submissions cannot
    both win — that is the replay check.
-5. Twenty submissions per person per hour, and sixty run starts per address —
+5. Twenty submissions per player per hour, and sixty run starts per address —
    `run-start` is the one endpoint that needs no credentials and writes a row.
 
 ### Closing the contest
@@ -205,7 +205,7 @@ Set these in Netlify under **Site configuration -> Environment variables**:
 | --- | --- |
 | `SUPABASE_URL` | Supabase -> Project Settings -> Data API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase -> Project Settings -> API Keys. Server only |
-| `EMAIL_HASH_SALT` | Any long random string you generate once |
+| `HASH_SALT` | Any long random string you generate once. `EMAIL_HASH_SALT` is still accepted |
 | `CONTEST_ENDS_AT` | Optional ISO timestamp. After it, runs cannot be started or posted; the standings stay readable |
 
 The service role key bypasses Row Level Security. It belongs only in Netlify's
@@ -213,9 +213,14 @@ environment, never in the repo and never in client code.
 
 ### Identity
 
-The leaderboard shows a display name. The work email is salted and hashed on the
-server, used only to keep one person from filling the top ten and to rate limit,
-and is never stored or displayed in the clear.
+A name is all anyone is asked for. Alongside it the browser generates a random
+player id, keeps it in `localStorage`, and sends it with each run so a person's
+runs collapse to their best and they can be shown their own standing.
+
+It is not an identity claim and nothing is trusted to it: clearing site data
+makes you a new player, and playing on a second device makes you a second one.
+That is the accepted cost of not asking a whole company for an email address for
+a birthday game. Addresses are the only thing still hashed, for rate limiting.
 
 ## Sound
 

@@ -29,8 +29,10 @@ create index if not exists run_tokens_ip_hash_idx on run_tokens (ip_hash, issued
 create table if not exists runs (
   id             uuid primary key default gen_random_uuid(),
   display_name   text not null check (char_length(display_name) between 1 and 40),
-  -- Salted hash of the work email. Used to dedupe and rate limit; never shown.
-  email_hash     text not null,
+  -- Random id the browser generates and keeps. Not personal data and not proof
+  -- of anything — it exists so one person's runs collapse to their best, and so
+  -- they can be shown their own standing.
+  player_id      text not null,
   points         int  not null check (points >= 0),
   level_reached  int  not null check (level_reached >= 1),
   levels_cleared int  not null default 0 check (levels_cleared >= 0),
@@ -47,17 +49,49 @@ create table if not exists runs (
   flagged        boolean not null default false
 );
 
+-- --------------------------------------------------------------------------
+-- Migration: the leaderboard used to identify players by a hash of their work
+-- email. Asking for one was more than a birthday game needed, so runs are keyed
+-- on a browser-generated id instead. Existing rows carry their old identity
+-- across, so runs already posted still collapse per person.
+-- --------------------------------------------------------------------------
+alter table runs add column if not exists player_id text;
+
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'runs' and column_name = 'email_hash'
+  ) then
+    execute 'update runs set player_id = email_hash where player_id is null';
+    execute 'drop view if exists leaderboard';
+    execute 'alter table runs drop column email_hash';
+  end if;
+end $$;
+
+-- Only once every row has one, or a re-run on a half-migrated table would fail.
+do $$
+begin
+  if not exists (select 1 from runs where player_id is null) then
+    execute 'alter table runs alter column player_id set not null';
+  end if;
+end $$;
+
+drop index if exists runs_email_hash_idx;
+
 create index if not exists runs_leaderboard_idx on runs (points desc, duration_ms asc);
-create index if not exists runs_email_hash_idx  on runs (email_hash);
+create index if not exists runs_player_id_idx   on runs (player_id);
 create index if not exists runs_created_at_idx  on runs (created_at desc);
 
 -- --------------------------------------------------------------------------
--- leaderboard: each person's best run, so one player cannot fill the top ten.
+-- leaderboard: each player's best run, so one person cannot fill the top ten.
 -- Ranked by points, then by the faster run as the tie-break.
 -- --------------------------------------------------------------------------
-create or replace view leaderboard as
-select distinct on (email_hash)
-  email_hash,
+drop view if exists leaderboard;
+
+create view leaderboard as
+select distinct on (player_id)
+  player_id,
   display_name,
   points,
   level_reached,
@@ -66,7 +100,7 @@ select distinct on (email_hash)
   created_at
 from runs
 where not flagged
-order by email_hash, points desc, duration_ms asc;
+order by player_id, points desc, duration_ms asc;
 
 -- --------------------------------------------------------------------------
 -- Lock everything down. No policies are created on purpose.
@@ -74,6 +108,6 @@ order by email_hash, points desc, duration_ms asc;
 alter table runs       enable row level security;
 alter table run_tokens enable row level security;
 
-revoke all on runs       from anon, authenticated;
-revoke all on run_tokens from anon, authenticated;
+revoke all on runs        from anon, authenticated;
+revoke all on run_tokens  from anon, authenticated;
 revoke all on leaderboard from anon, authenticated;

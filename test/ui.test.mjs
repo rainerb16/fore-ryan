@@ -53,7 +53,7 @@ function fakeApi(routes = {}) {
           { status: 422 },
         );
       }
-      return ok({ points: result.computedPoints, handle: "a".repeat(64) });
+      return ok({ points: result.computedPoints });
     }
     throw new Error(`unexpected request: ${path}`);
   };
@@ -353,7 +353,6 @@ test("a finished run posts the score and reports the rank", async () => {
   assert.equal(g.el("submitForm").hidden, false, "an online run should offer the form");
 
   g.type("nameInput", "Ryan B");
-  g.type("emailInput", "ryan@example.com");
   g.submit("submitForm");
   await g.settle(50);
 
@@ -362,7 +361,7 @@ test("a finished run posts the score and reports the rank", async () => {
 
   const body = JSON.parse(posted.body);
   assert.equal(body.displayName, "Ryan B");
-  assert.equal(body.email, "ryan@example.com");
+  assert.match(body.playerId, /^[0-9a-f-]{36}$/);
   assert.equal(body.token, "11111111-2222-3333-4444-555555555555");
   assert.ok(body.summary.levels.length > 0, "the per-level stats must be included");
 
@@ -419,7 +418,6 @@ test("a rejected run explains itself and leaves the form open", async () => {
   await playContestRun(g);
 
   g.type("nameInput", "Ryan B");
-  g.type("emailInput", "ryan@example.com");
   g.submit("submitForm");
   await g.settle(50);
 
@@ -434,7 +432,6 @@ test("the same run cannot be posted twice from the form", async () => {
   await playContestRun(g);
 
   g.type("nameInput", "Ryan B");
-  g.type("emailInput", "ryan@example.com");
   g.submit("submitForm");
   g.submit("submitForm"); // double tap before the first resolves
   await g.settle(50);
@@ -442,38 +439,40 @@ test("the same run cannot be posted twice from the form", async () => {
   assert.equal(api.calls.filter((c) => c.path === "/api/submit-run").length, 1);
 });
 
-test("the work email never travels in a URL", async () => {
+test("nothing personal is sent anywhere", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
   await playContestRun(g);
 
   g.type("nameInput", "Ryan B");
-  g.type("emailInput", "ryan@example.com");
   g.submit("submitForm");
   await g.settle(50);
 
-  // Query strings land in access logs. The address goes in a POST body, and the
-  // rank lookup uses the opaque handle the server hands back instead.
+  // The only things that leave the browser are a display name and a random id.
   for (const call of api.calls) {
     assert.ok(!call.url.includes("@"), `an address reached a URL: ${call.url}`);
-    assert.ok(!call.url.includes("ryan"), `an address reached a URL: ${call.url}`);
+    const body = call.body ? JSON.parse(call.body) : {};
+    assert.deepEqual(
+      Object.keys(body).filter((k) => !["token", "displayName", "playerId", "summary"].includes(k)),
+      [],
+      "an unexpected field was submitted",
+    );
   }
 
   const board = api.calls.filter((c) => c.path === "/api/leaderboard");
   assert.ok(board.length > 0, "the rank should have been looked up");
-  assert.ok(board.some((c) => c.url.includes("handle=")), "by handle");
+  assert.ok(board.some((c) => c.url.includes("player=")), "by player id");
 });
 
-test("the name and email are remembered for the next run", async () => {
+test("the name is remembered for the next run", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
   await playContestRun(g);
 
   g.type("nameInput", "Ryan B");
-  g.type("emailInput", "ryan@example.com");
   g.submit("submitForm");
   await g.settle(50);
 
   assert.equal(g.window.localStorage.getItem("ryanbday.name"), "Ryan B");
-  assert.equal(g.window.localStorage.getItem("ryanbday.email"), "ryan@example.com");
+  assert.match(g.window.localStorage.getItem("ryanbday.player") ?? "", /^[0-9a-f-]{36}$/);
 });

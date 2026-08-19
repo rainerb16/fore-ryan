@@ -11,7 +11,7 @@ import { build } from "esbuild";
 
 process.env.SUPABASE_URL = "https://example.supabase.co";
 process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role-test-key";
-process.env.EMAIL_HASH_SALT = "test-salt";
+process.env.HASH_SALT = "test-salt";
 
 const dir = mkdtempSync(join(tmpdir(), "fore-ryan-api-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -87,9 +87,9 @@ function installFakeDatabase() {
     }
 
     if (path.startsWith("runs?") && method === "GET") {
-      const hash = decodeURIComponent(path.match(/email_hash=eq\.([^&]+)/)[1]);
+      const hash = decodeURIComponent(path.match(/player_id=eq\.([^&]+)/)[1]);
       const since = Date.parse(decodeURIComponent(path.match(/created_at=gte\.([^&]+)/)[1]));
-      const n = runs.filter((r) => r.email_hash === hash && r.created_at >= since).length;
+      const n = runs.filter((r) => r.player_id === hash && r.created_at >= since).length;
       return ok([], { "content-range": "0-0/" + n });
     }
 
@@ -104,8 +104,8 @@ function installFakeDatabase() {
         ).length;
         return ok([], { "content-range": "0-0/" + n });
       }
-      const hash = path.match(/email_hash=eq\.([^&]+)/);
-      if (hash) return ok(board.filter((r) => r.email_hash === decodeURIComponent(hash[1])));
+      const hash = path.match(/player_id=eq\.([^&]+)/);
+      if (hash) return ok(board.filter((r) => r.player_id === decodeURIComponent(hash[1])));
 
       // The view is ordered and paged by the database, so the fake must be too.
       const limit = Number(path.match(/limit=(\d+)/)?.[1] ?? board.length);
@@ -165,7 +165,7 @@ const post = (body) =>
 const goodSubmission = (over = {}) => ({
   token: tokenIssuedAgo(120000),
   displayName: "Ryan B",
-  email: "ryan@example.com",
+  playerId: "11111111-aaaa-4bbb-8ccc-222222222222",
   summary: summaryOf([clearedL1, clearedL2]),
   ...over,
 });
@@ -239,13 +239,12 @@ test("an honest run is accepted and stored with the server's own score", async (
   assert.equal(payload.points, runs[0].points);
 });
 
-test("the email is stored only as a salted hash", async () => {
+test("nothing personal is stored — a run carries a name and an opaque id", async () => {
   await post(goodSubmission());
-  assert.ok(
-    !JSON.stringify(runs[0]).includes("ryan@example.com"),
-    "the raw email must never be stored",
-  );
-  assert.match(runs[0].email_hash, /^[0-9a-f]{64}$/);
+  const stored = runs[0];
+  assert.equal(stored.display_name, "Ryan B");
+  assert.equal(stored.player_id, "11111111-aaaa-4bbb-8ccc-222222222222");
+  assert.equal(Object.keys(stored).includes("email_hash"), false);
 });
 
 test("an inflated score claim is overwritten, not trusted", async () => {
@@ -304,9 +303,9 @@ test("rejects a missing or malformed name", async () => {
   assert.equal((await post(goodSubmission({ displayName: 42 }))).status, 400);
 });
 
-test("rejects a missing or malformed email", async () => {
-  assert.equal((await post(goodSubmission({ email: "nope" }))).status, 400);
-  assert.equal((await post(goodSubmission({ email: null }))).status, 400);
+test("rejects a missing or malformed player id", async () => {
+  assert.equal((await post(goodSubmission({ playerId: "nope" }))).status, 400);
+  assert.equal((await post(goodSubmission({ playerId: null }))).status, 400);
 });
 
 test("rate limits one person to 20 runs an hour", async () => {
@@ -319,9 +318,9 @@ test("rate limits one person to 20 runs an hour", async () => {
   assert.equal(runs.length, 20);
 });
 
-test("the rate limit is per person, not global", async () => {
+test("the rate limit is per player, not global", async () => {
   for (let i = 0; i < 20; i++) await post(goodSubmission());
-  const other = await post(goodSubmission({ email: "someone.else@example.com" }));
+  const other = await post(goodSubmission({ playerId: "33333333-aaaa-4bbb-8ccc-444444444444" }));
   assert.equal(other.status, 200);
 });
 
@@ -340,7 +339,7 @@ test("rejects GET", async () => {
 // --- leaderboard ------------------------------------------------------------
 
 const boardRow = (over = {}) => ({
-  email_hash: "0".repeat(64),
+  player_id: "11111111-aaaa-4bbb-8ccc-222222222222",
   display_name: "Dana",
   points: 18400,
   level_reached: 7,
@@ -353,60 +352,57 @@ const boardRow = (over = {}) => ({
 const getBoard = (query = "") =>
   leaderboard(new Request(`https://example.com/api/leaderboard${query}`));
 
-test("the standings never expose anybody's email hash", async () => {
-  board.push(boardRow(), boardRow({ email_hash: "1".repeat(64), display_name: "Sam", points: 900 }));
+test("the standings never expose anybody's player id", async () => {
+  board.push(boardRow(), boardRow({ player_id: "33333333-aaaa-4bbb-8ccc-444444444444", display_name: "Sam", points: 900 }));
 
   const res = await getBoard();
   const body = await res.json();
 
   assert.equal(res.status, 200);
   assert.equal(body.top.length, 2);
-  assert.ok(
-    !JSON.stringify(body).includes("0".repeat(64)),
-    "an identifier reached the browser",
-  );
-  for (const entry of body.top) assert.equal(entry.email_hash, undefined);
+  assert.ok(!JSON.stringify(body).includes("11111111-aaaa-4bbb-8ccc-222222222222"), "an identifier reached the browser");
+  for (const entry of body.top) assert.equal(entry.player_id, undefined);
 });
 
 test("ranks are assigned in the order the view returns", async () => {
-  board.push(boardRow(), boardRow({ email_hash: "1".repeat(64), display_name: "Sam", points: 900 }));
+  board.push(boardRow(), boardRow({ player_id: "33333333-aaaa-4bbb-8ccc-444444444444", display_name: "Sam", points: 900 }));
   const { top } = await (await getBoard()).json();
   assert.deepEqual(top.map((r) => [r.rank, r.display_name]), [[1, "Dana"], [2, "Sam"]]);
 });
 
-test("a handle finds its own rank, and matches on identity not on score", async () => {
-  const mineHash = "1".repeat(64);
+test("a player id finds its own rank, and matches on identity not on score", async () => {
+  const mineHash = "33333333-aaaa-4bbb-8ccc-444444444444";
   // Same name and same points as the leader: matching on those would collide.
-  board.push(boardRow(), boardRow({ email_hash: mineHash }));
+  board.push(boardRow(), boardRow({ player_id: mineHash }));
 
-  const { mine } = await (await getBoard(`?handle=${mineHash}`)).json();
+  const { mine } = await (await getBoard(`?player=${mineHash}`)).json();
   assert.equal(mine.rank, 2, "the second row is mine, despite identical name and score");
-  assert.equal(mine.email_hash, undefined);
+  assert.equal(mine.player_id, undefined);
 });
 
 test("someone with no posted run has no standing", async () => {
   board.push(boardRow());
-  const { mine } = await (await getBoard(`?handle=${"2".repeat(64)}`)).json();
+  const { mine } = await (await getBoard(`?player=${"55555555-aaaa-4bbb-8ccc-666666666666"}`)).json();
   assert.equal(mine, null);
 });
 
 test("a run below the listed cut still gets its real rank", async () => {
-  const mineHash = "9".repeat(64);
+  const mineHash = "77777777-aaaa-4bbb-8ccc-888888888888";
   // Thirty ahead of them, and only three are listed.
   for (let i = 0; i < 30; i++) {
-    board.push(boardRow({ email_hash: String(i).padStart(64, "0"), points: 20000 - i }));
+    board.push(boardRow({ player_id: `${String(i).padStart(8, "0")}-aaaa-4bbb-8ccc-999999999999`, points: 20000 - i }));
   }
-  board.push(boardRow({ email_hash: mineHash, display_name: "Late Joiner", points: 300 }));
+  board.push(boardRow({ player_id: mineHash, display_name: "Late Joiner", points: 300 }));
 
-  const { top, mine } = await (await getBoard(`?handle=${mineHash}&limit=3`)).json();
+  const { top, mine } = await (await getBoard(`?player=${mineHash}&limit=3`)).json();
   assert.equal(top.length, 3, "the list is capped");
   assert.equal(mine.rank, 31, "counted against the whole board, not just the page");
   assert.equal(mine.display_name, "Late Joiner");
 });
 
-test("anything that is not a handle is ignored", async () => {
+test("anything that is not a player id is ignored", async () => {
   board.push(boardRow());
-  for (const q of ["?handle=ryan@example.com", "?handle=../etc", "?handle=", "?email=ryan@x.com"]) {
+  for (const q of ["?player=ryan@example.com", "?player=../etc", "?player=", "?handle=x"]) {
     const { mine } = await (await getBoard(q)).json();
     assert.equal(mine, null, `${q} should not resolve to anyone`);
   }

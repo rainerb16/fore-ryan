@@ -7,7 +7,6 @@ import type { RunSummary } from "../../shared/types";
 import {
   boardList,
   boardStatus,
-  emailInput,
   nameInput,
   submitBtn,
   submitForm,
@@ -17,9 +16,21 @@ import { row } from "./elements";
 import { formatDuration, formatPoints } from "./format";
 
 const NAME_KEY = "ryanbday.name";
-const EMAIL_KEY = "ryanbday.email";
-/** Opaque id from the server, so asking for our own rank needs no email. */
-const HANDLE_KEY = "ryanbday.handle";
+const PLAYER_KEY = "ryanbday.player";
+
+/**
+ * A random id this browser keeps, so a person's runs collapse to their best and
+ * they can be shown their own standing. It identifies nobody and proves nothing:
+ * clearing site data makes you a new player, which is the accepted cost of not
+ * asking for an email.
+ */
+function playerId(): string {
+  const saved = store.get(PLAYER_KEY, "");
+  if (saved) return saved;
+  const id = crypto.randomUUID();
+  store.set(PLAYER_KEY, id);
+  return id;
+}
 
 /** The run waiting to be posted. Cleared once it is in. */
 let pending: { summary: RunSummary; token: string | null } | null = null;
@@ -41,7 +52,6 @@ export function armSubmission(summary: RunSummary, token: string | null): void {
   posting = false;
 
   nameInput.value = store.get(NAME_KEY, "");
-  emailInput.value = store.get(EMAIL_KEY, "");
   submitForm.hidden = false;
   submitBtn.disabled = false;
 
@@ -62,8 +72,7 @@ async function post(event: Event): Promise<void> {
   if (posting || !pending?.token) return;
 
   const displayName = nameInput.value.trim();
-  const email = emailInput.value.trim();
-  if (!displayName || !email) return;
+  if (!displayName) return;
 
   posting = true;
   submitBtn.disabled = true;
@@ -72,7 +81,7 @@ async function post(event: Event): Promise<void> {
   const result = await submitRun({
     token: pending.token,
     displayName,
-    email,
+    playerId: playerId(),
     summary: pending.summary,
   });
 
@@ -83,10 +92,7 @@ async function post(event: Event): Promise<void> {
     return;
   }
 
-  // Remembered so a second run is not a retype.
-  store.set(NAME_KEY, displayName);
-  store.set(EMAIL_KEY, email);
-  if (result.handle) store.set(HANDLE_KEY, result.handle);
+  store.set(NAME_KEY, displayName); // so a second run is not a retype
 
   submitForm.hidden = true;
   submitStatus.textContent = `Posted — ${formatPoints(result.points)} points.`;
@@ -94,7 +100,7 @@ async function post(event: Event): Promise<void> {
 
   // The rank is a payoff, not worth failing the submission over.
   try {
-    const { mine } = await fetchLeaderboard(result.handle);
+    const { mine } = await fetchLeaderboard(playerId());
     if (mine?.rank) {
       submitStatus.textContent =
         `Posted — ${formatPoints(result.points)} points. You're #${mine.rank}. 🏆`;
@@ -125,7 +131,7 @@ export async function loadBoard(): Promise<void> {
   boardStatus.textContent = "Loading…";
 
   try {
-    const { top, mine, closesAt, closed } = await fetchLeaderboard(store.get(HANDLE_KEY, "") || null);
+    const { top, mine, closesAt, closed } = await fetchLeaderboard(store.get(PLAYER_KEY, "") || null);
     const deadline = deadlineNote(closesAt, closed);
 
     if (top.length === 0) {

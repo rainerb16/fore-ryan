@@ -1,6 +1,8 @@
 /** Config the functions need. Missing values fail loudly at call time, not at import. */
 export function env(name: string): string {
-  const value = process.env[name];
+  // HASH_SALT was EMAIL_HASH_SALT when the board still asked for a work email.
+  // Accepting the old name means the rename can happen whenever, not on deploy.
+  const value = process.env[name] ?? (name === "HASH_SALT" ? process.env.EMAIL_HASH_SALT : undefined);
   if (!value) throw new Error(`Missing environment variable ${name}`);
   return value;
 }

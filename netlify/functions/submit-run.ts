@@ -5,20 +5,16 @@
 
 import { consumeToken, findToken, insertRun, recentRunCount } from "./_db";
 import { contestIsClosed, RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
-import { cleanName, clientIp, fail, hashEmail, hashIp, json, looksLikeEmail } from "./_http";
+import { cleanName, clientIp, fail, hashIp, isUuid, json } from "./_http";
 import { validateRun } from "../../shared/scoring";
 import type { RunSummary } from "../../shared/types";
 
 interface Payload {
   token?: unknown;
   displayName?: unknown;
-  email?: unknown;
+  playerId?: unknown;
   summary?: unknown;
 }
-
-const isUuid = (v: unknown): v is string =>
-  typeof v === "string" &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
 export default async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return fail(405, "Use POST");
@@ -36,11 +32,12 @@ export default async (req: Request): Promise<Response> => {
 
   const displayName = cleanName(body.displayName);
   if (!displayName) return fail(400, "Enter a name of 1 to 40 characters");
-  if (!looksLikeEmail(body.email)) return fail(400, "Enter your work email");
+  if (!isUuid(body.playerId)) return fail(400, "Missing player id");
   if (!isUuid(body.token)) return fail(400, "Missing run token");
   if (!body.summary || typeof body.summary !== "object") return fail(400, "Missing run summary");
 
   const summary = body.summary as RunSummary;
+  const playerId = body.playerId;
 
   // 1. The run has to reproduce its own score from its own stats.
   const check = validateRun(summary);
@@ -59,8 +56,8 @@ export default async (req: Request): Promise<Response> => {
     const age = Date.now() - issuedAt;
     if (age > TOKEN_TTL_MS) return fail(410, "That run took too long to submit");
 
-    // 3. Wall-clock sanity: a 90-second run cannot be submitted 10 seconds after
-    //    the token was issued, however convincing its stats look.
+    // 3. Wall-clock sanity: a run claiming 90 seconds of play cannot be
+    //    submitted 10 seconds after the token was issued.
     if (age < summary.durationMs * WALL_CLOCK_SLACK) {
       console.warn("rejected run: too fast in wall-clock terms", {
         displayName,
@@ -70,10 +67,8 @@ export default async (req: Request): Promise<Response> => {
       return fail(422, "That run did not add up");
     }
 
-    const emailHash = hashEmail(body.email);
-
-    // 4. Rate limit per person, so nobody can grind the endpoint.
-    if ((await recentRunCount(emailHash)) >= RATE_LIMIT_PER_HOUR) {
+    // 4. Rate limit per player, so nobody can grind the endpoint.
+    if ((await recentRunCount(playerId)) >= RATE_LIMIT_PER_HOUR) {
       return fail(429, "Too many runs submitted in the last hour — try again shortly");
     }
 
@@ -85,7 +80,7 @@ export default async (req: Request): Promise<Response> => {
 
     await insertRun({
       display_name: displayName,
-      email_hash: emailHash,
+      player_id: playerId,
       // The server's own number, never the client's claim.
       points: check.computedPoints,
       level_reached: summary.levelReached,
@@ -102,9 +97,7 @@ export default async (req: Request): Promise<Response> => {
       },
     });
 
-    // The handle lets the client ask for its own rank later without ever putting
-    // an email in a URL.
-    return json({ points: check.computedPoints, handle: emailHash });
+    return json({ points: check.computedPoints });
   } catch (err) {
     console.error("submit-run failed", err);
     return fail(500, "Could not save that run");

@@ -21,9 +21,7 @@ export interface LeaderboardData {
   closed: boolean;
 }
 
-export type SubmitResult =
-  | { ok: true; points: number; handle: string | null }
-  | { ok: false; error: string };
+export type SubmitResult = { ok: true; points: number } | { ok: false; error: string };
 
 /** The server's own message where there is one, ours otherwise. */
 async function errorFrom(res: Response, fallback: string): Promise<string> {
@@ -54,7 +52,7 @@ export async function requestRunToken(): Promise<string | null> {
 export async function submitRun(args: {
   token: string;
   displayName: string;
-  email: string;
+  playerId: string;
   summary: RunSummary;
 }): Promise<SubmitResult> {
   try {
@@ -66,19 +64,16 @@ export async function submitRun(args: {
     if (!res.ok) {
       return { ok: false, error: await errorFrom(res, "Could not save that run") };
     }
-    const body = (await res.json()) as { points?: number; handle?: string };
-    return { ok: true, points: body.points ?? 0, handle: body.handle ?? null };
+    const body = (await res.json()) as { points?: number };
+    return { ok: true, points: body.points ?? 0 };
   } catch {
     return { ok: false, error: "No connection — your score was not saved" };
   }
 }
 
-/**
- * `handle` is the opaque id submit-run returns. Deliberately not the email: this
- * is a GET, and query strings end up in access logs.
- */
-export async function fetchLeaderboard(handle?: string | null): Promise<LeaderboardData> {
-  const query = handle ? `?handle=${encodeURIComponent(handle)}` : "";
+/** The player id only ever asks "where do I stand" — it identifies nobody. */
+export async function fetchLeaderboard(playerId?: string | null): Promise<LeaderboardData> {
+  const query = playerId ? `?player=${encodeURIComponent(playerId)}` : "";
 
   let res: Response;
   try {

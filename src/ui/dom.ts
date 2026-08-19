@@ -35,7 +35,6 @@ export const runBreakdown = need("runBreakdown");
 
 export const submitForm = need<HTMLFormElement>("submitForm");
 export const nameInput = need<HTMLInputElement>("nameInput");
-export const emailInput = need<HTMLInputElement>("emailInput");
 export const submitBtn = need<HTMLButtonElement>("submitBtn");
 export const submitStatus = need("submitStatus");
 
