@@ -87,6 +87,10 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
     input.dispatchEvent(new window.Event("input", { bubbles: true }));
   };
 
+  /** key("keydown", " ", { repeat: true }) — a held key, as the browser sends it. */
+  const key = (kind, name, opts = {}) =>
+    window.dispatchEvent(new window.KeyboardEvent(kind, { key: name, bubbles: true, ...opts }));
+
   const submit = (id) => el(id).dispatchEvent(new window.Event("submit", { bubbles: true, cancelable: true }));
 
   let ts = 0;
@@ -125,6 +129,7 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
     type,
     submit,
     roundOver,
+    key,
     errors,
     drawnText,
     drawnImages,

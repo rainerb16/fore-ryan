@@ -1,6 +1,6 @@
 import { boardScreen, canvas } from "../ui/dom";
 import { startGame } from "../ui/screens";
-import { STATE } from "./config";
+import { MODE, STATE } from "./config";
 import { game, keys, player } from "./state";
 
 /**
@@ -12,6 +12,14 @@ const isTyping = (e: KeyboardEvent): boolean => {
   const el = e.target as HTMLElement | null;
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
 };
+
+/**
+ * A contest run ends on its scorecard, which has a score to post and a form to
+ * post it with. Nothing may skip past that; the birthday round keeps its
+ * press-a-key-to-go-again.
+ */
+const awaitingScorecard = (): boolean =>
+  game.mode === MODE.CONTEST && game.state === STATE.LOSE;
 
 window.addEventListener("keydown", (e) => {
   if (isTyping(e)) return;
@@ -28,9 +36,15 @@ window.addEventListener("keydown", (e) => {
   }
   if (k === " " || k === "enter") {
     e.preventDefault();
-    if (game.state === STATE.PLAYING) game.firing = true;
-    // Enter on the standings would otherwise start a run behind the overlay.
-    else if (boardScreen.hidden) startGame(game.mode);
+    if (game.state === STATE.PLAYING) {
+      // Repeats are welcome here: holding fire through a restart keeps firing.
+      game.firing = true;
+    } else if (!e.repeat && boardScreen.hidden && !awaitingScorecard()) {
+      // A held key repeats, and fire is held while playing — so the repeat that
+      // lands the instant you die must not read as "press a key to restart".
+      // Enter on the standings would likewise start a run behind the overlay.
+      startGame(game.mode);
+    }
   }
 });
 

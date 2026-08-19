@@ -316,6 +316,88 @@ test("the contest can be started straight from a finished birthday round", async
   );
 });
 
+test("dying with fire held shows the scorecard, it does not restart the run", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("contestBtn");
+  await g.settle(20);
+
+  // Play on the keyboard, holding space, which is how a desktop player fires.
+  g.key("keydown", " ");
+  for (let i = 0; i < 60 && !g.roundOver(); i++) {
+    g.key("keydown", " ", { repeat: true }); // the browser keeps sending these
+    await g.tick(300);
+  }
+  assert.ok(g.roundOver(), "the run should have ended");
+
+  // Still holding as the run ends — the repeats must not count as a new press.
+  g.key("keydown", " ", { repeat: true });
+  g.key("keydown", " ", { repeat: true });
+  await g.settle(600);
+
+  assert.equal(g.el("runScreen").hidden, false, "the scorecard should be showing");
+  assert.ok(g.roundOver(), "the run must not have restarted");
+  assert.ok(
+    g.el("runBreakdown").querySelectorAll("li.row").length > 0,
+    "the scorecard should have the finished run on it",
+  );
+});
+
+test("space does not skip past the scorecard once it is up", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  await playContestRun(g);
+
+  // A fresh press, not a repeat — the run screen still owns the moment.
+  g.key("keydown", " ");
+  await g.settle(50);
+
+  assert.equal(g.el("runScreen").hidden, false, "the scorecard should still be showing");
+  assert.ok(g.roundOver());
+});
+
+test("holding fire through a restart keeps firing", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("contestBtn");
+  await g.settle(20);
+  g.key("keydown", " ");
+  for (let i = 0; i < 60 && !g.roundOver(); i++) {
+    g.key("keydown", " ", { repeat: true });
+    await g.tick(300);
+  }
+  await g.settle(600);
+
+  // Play again by clicking, with space still held down.
+  g.click("runAgainBtn");
+  await g.settle(20);
+  for (let i = 0; i < 8; i++) {
+    g.key("keydown", " ", { repeat: true }); // only repeats — the key never came up
+    await g.tick(240);
+  }
+
+  const holes = Number(g.text("score").replace(/\D/g, ""));
+  const level = Number(g.text("level").replace(/\D/g, ""));
+  assert.ok(holes > 0 || level > 1, "a held key should still be firing after a restart");
+});
+
+test("the birthday round can still be restarted from the keyboard", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("startBtn");
+  g.holdFire();
+  for (let i = 0; i < 40 && !g.roundOver(); i++) await g.tick(300);
+  await g.settle(600);
+
+  g.key("keydown", "Enter"); // a fresh press, from the win or lose screen
+  await g.settle(20);
+
+  assert.equal(g.roundOver(), false, "Enter should have started another round");
+});
+
 test("a contest run asks for a token as play begins", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
