@@ -1,4 +1,4 @@
-XXROWXX# Fore Ryan! ⛳🎉
+# Fore Ryan! ⛳🎉
 
 A browser game. Ryan's floating head launches golf balls at holes sliding across the top of
 the screen while dodging falling trees and water hazards.
@@ -7,8 +7,8 @@ Two ways to play:
 
 - **Birthday Round** — the gift. Sink 5 holes and the payoff fires: slow-motion on the
   winning shot, a screen flash, confetti rain, a party hat, and the "Happy Birthday" melody.
-- **Contest Mode** — the leaderboard run. Levels get harder, lives carry across them, and
-  the run ends when you're out of hearts. Points rank the contest.
+- **Contest Mode** — the leaderboard run. Five lives, carried across levels that keep
+  getting harder until one of them finishes you. Points rank the contest.
 
 No runtime dependencies and no audio or image files beyond the one head cutout — the only
 tooling is Vite and TypeScript for the build.
@@ -238,7 +238,7 @@ Per-level difficulty lives in `shared/rules.ts`. Everything else is in `src/game
 
 | Constant | Purpose |
 | --- | --- |
-| `START_LIVES` | lives per run (3) — in `shared/rules.ts` |
+| `BIRTHDAY_LIVES` / `CONTEST_LIVES` | lives per run (3 / 5) — in `shared/rules.ts` |
 | `SHOT_COOLDOWN` | ms between shots while holding fire — in `shared/rules.ts` |
 | `HEAD_GROW` | head growth per hole sunk (0.06 = 6%) |
 | `HAZARD_FALL` | base hazard fall speed, scaled per level |

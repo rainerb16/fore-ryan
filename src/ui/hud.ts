@@ -1,5 +1,5 @@
 import { SCORING } from "../../shared/scoring";
-import { MODE, START_LIVES } from "../game/config";
+import { MODE } from "../game/config";
 import { game } from "../game/state";
 import { levelEl, livesEl, pointsEl, scoreEl } from "./dom";
 
@@ -19,7 +19,7 @@ export function updateHud(): void {
   scoreEl.textContent = `⛳ ${game.holes} / ${game.cfg.holesToClear}`;
 
   let out = "";
-  for (let i = 0; i < START_LIVES; i++) {
+  for (let i = 0; i < game.maxLives; i++) {
     out += i < game.lives ? "❤️" : '<span class="spent">❤️</span>';
   }
   livesEl.innerHTML = out;

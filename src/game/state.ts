@@ -1,4 +1,4 @@
-import { HEAD_R, MODE, START_LIVES, STATE, type GameMode, type GameState } from "./config";
+import { BIRTHDAY_LIVES, HEAD_R, MODE, STATE, type GameMode, type GameState } from "./config";
 import { levelConfig } from "../../shared/rules";
 import type { LevelConfig } from "../../shared/rules";
 import type { LevelStats } from "../../shared/types";
@@ -20,7 +20,9 @@ export const game = {
   holes: 0,
   /** Points banked from levels already scored. */
   points: 0,
-  lives: START_LIVES,
+  lives: BIRTHDAY_LIVES,
+  /** Lives this mode starts with, so the HUD knows how many hearts to draw. */
+  maxLives: BIRTHDAY_LIVES,
   /** Total run time. Also the birthday round's clock. */
   elapsed: 0,
 

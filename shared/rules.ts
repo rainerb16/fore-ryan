@@ -5,7 +5,14 @@
 export const HAZARDS = ["water", "tree"] as const;
 export type HazardType = (typeof HAZARDS)[number];
 
-export const START_LIVES = 3;
+/**
+ * Lives per run. The birthday round keeps the original three; a contest run gets
+ * five, because the tail is lethal and a short run is not worth the trouble of
+ * posting. Only contest runs are ever submitted, so CONTEST_LIVES is what the
+ * validator checks against.
+ */
+export const BIRTHDAY_LIVES = 3;
+export const CONTEST_LIVES = 5;
 
 /** Minimum ms between shots while fire is held. Also the validator's rate ceiling. */
 export const SHOT_COOLDOWN = 320;

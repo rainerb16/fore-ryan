@@ -211,6 +211,21 @@ test("the birthday round always uses the level 1 look", async () => {
   assert.equal(stage.style.getPropertyValue("--sky-top"), levelOneSky);
 });
 
+test("contest runs get five lives, the birthday round keeps three", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+  const hearts = () => g.el("lives").textContent.match(/❤️/gu)?.length ?? 0;
+
+  g.click("startBtn");
+  assert.equal(hearts(), 3, "the gift round is unchanged");
+
+  g.click("contestBtn");
+  assert.equal(hearts(), 5, "a contest run is longer");
+
+  g.click("runHomeBtn");
+  assert.equal(hearts(), 3, "returning home goes back to the birthday round");
+});
+
 test("a contest run asks for a token as play begins", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });

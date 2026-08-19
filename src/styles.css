@@ -370,6 +370,10 @@
     #hud { font-size: 15px; gap: 6px; }
     #hud .pill { padding: 6px 11px; }
     #hud .group { gap: 6px; }
+    #lives { letter-spacing: 0; }
+    /* Five hearts plus four pills will not fit a phone. The level is announced
+       by the banner on every change, so it is the one that gives way. */
+    #hud .pill.lvl { display: none; }
   }
 
   /* --- leaderboard submission form ---------------------------------------- */

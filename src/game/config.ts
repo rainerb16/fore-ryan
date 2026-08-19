@@ -1,5 +1,5 @@
 // Rules the server also needs live in shared/ — imported here, never redeclared.
-export { HAZARDS, SHOT_COOLDOWN, START_LIVES } from "../../shared/rules";
+export { BIRTHDAY_LIVES, CONTEST_LIVES, HAZARDS, SHOT_COOLDOWN } from "../../shared/rules";
 export type { HazardType } from "../../shared/rules";
 
 // --- assets -----------------------------------------------------------------

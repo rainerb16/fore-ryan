@@ -1,7 +1,7 @@
 // The points formula. The client shows it; the server re-derives it from the
 // submitted per-level stats and rejects anything that doesn't reproduce.
 
-import { levelConfig, SHOT_COOLDOWN, START_LIVES } from "./rules";
+import { CONTEST_LIVES, levelConfig, SHOT_COOLDOWN } from "./rules";
 import type { LevelScore, LevelStats, RunSummary } from "./types";
 
 export const SCORING = {
@@ -80,7 +80,7 @@ export function validateRun(summary: RunSummary): ValidationResult {
     if (s.shots < s.holes) reasons.push(`${where}: more holes than shots`);
     if (s.durationMs < minLevelMs(s.level)) reasons.push(`${where}: cleared faster than possible`);
     if (s.shots > s.durationMs / SHOT_COOLDOWN + 2) reasons.push(`${where}: fire rate exceeded`);
-    if (s.livesLost < 0 || s.livesLost >= START_LIVES + 1) reasons.push(`${where}: bad life count`);
+    if (s.livesLost < 0 || s.livesLost > CONTEST_LIVES) reasons.push(`${where}: bad life count`);
 
     // Only the final level may be incomplete — you can't advance without clearing.
     const cleared = s.holes >= cfg.holesToClear;
@@ -92,7 +92,7 @@ export function validateRun(summary: RunSummary): ValidationResult {
     holes += s.holes;
   });
 
-  if (livesLost > START_LIVES) reasons.push("lost more lives than the run allows");
+  if (livesLost > CONTEST_LIVES) reasons.push("lost more lives than the run allows");
 
   const computedPoints = runTotal(levels);
   if (summary.shotsFired !== shots) reasons.push("shot total does not match per-level stats");

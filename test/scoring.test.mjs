@@ -166,12 +166,23 @@ test("rejects more holes than the level contains", () => {
 
 test("rejects surviving more life losses than the run allows", () => {
   const levels = [
-    { ...clearedL1, livesLost: 2 },
-    { ...clearedL2, livesLost: 2 },
+    { ...clearedL1, livesLost: 3 },
+    { ...clearedL2, livesLost: 3 },
   ];
   const res = validateRun(summaryOf(levels));
   assert.ok(!res.ok);
   assert.match(res.reasons.join(" "), /more lives than the run allows/);
+});
+
+test("spending every life but no more is allowed", () => {
+  // A contest run has five, and dying on the last one is the normal ending.
+  const levels = [
+    { ...clearedL1, livesLost: 2 },
+    { ...clearedL2, livesLost: 3 },
+  ];
+  const res = validateRun(summaryOf(levels));
+  assert.deepEqual(res.reasons, []);
+  assert.ok(res.ok);
 });
 
 test("rejects totals that disagree with the per-level stats", () => {

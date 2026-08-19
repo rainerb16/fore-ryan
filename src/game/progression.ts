@@ -5,7 +5,7 @@ import { levelConfig } from "../../shared/rules";
 import { scoreLevel } from "../../shared/scoring";
 import type { LevelStats, RunSummary } from "../../shared/types";
 import { updateHud } from "../ui/hud";
-import { MODE, START_LIVES, type GameMode } from "./config";
+import { BIRTHDAY_LIVES, CONTEST_LIVES, MODE, type GameMode } from "./config";
 import { rand } from "./rng";
 import { game, hazards, shots } from "./state";
 import { applyTheme } from "../render/theme";
@@ -48,7 +48,8 @@ export function beginLevel(n: number): void {
 export function startRun(mode: GameMode): void {
   game.mode = mode;
   game.points = 0;
-  game.lives = START_LIVES;
+  game.maxLives = mode === MODE.CONTEST ? CONTEST_LIVES : BIRTHDAY_LIVES;
+  game.lives = game.maxLives;
   game.elapsed = 0;
   game.log.length = 0;
   beginLevel(1);

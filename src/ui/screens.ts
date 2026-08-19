@@ -1,7 +1,7 @@
 import { levelConfig } from "../../shared/rules";
 import { scoreLevel } from "../../shared/scoring";
 import { initAudio, sfx } from "../game/audio";
-import { MODE, STATE, type GameMode } from "../game/config";
+import { BIRTHDAY_LIVES, MODE, STATE, type GameMode } from "../game/config";
 import { bankLevel, runSummary, startRun } from "../game/progression";
 import { game } from "../game/state";
 import { store } from "../game/storage";
@@ -60,6 +60,8 @@ export function showStart(): void {
   hud.classList.add("pregame");
   game.state = STATE.START;
   game.mode = MODE.BIRTHDAY;
+  game.maxLives = BIRTHDAY_LIVES;
+  game.lives = BIRTHDAY_LIVES;
   applyTheme(1);
   reset();
   updateHud();
