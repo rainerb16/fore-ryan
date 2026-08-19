@@ -2,7 +2,7 @@
 // never ships to the browser and there is only one path into the database.
 
 import { personalBest, topRuns } from "./_db";
-import { LEADERBOARD_LIMIT } from "./_env";
+import { contestEndsAt, contestIsClosed, LEADERBOARD_LIMIT } from "./_env";
 import { fail, hashEmail, json, looksLikeEmail } from "./_http";
 
 export default async (req: Request): Promise<Response> => {
@@ -23,7 +23,12 @@ export default async (req: Request): Promise<Response> => {
     const ranked = top.map((row, i) => ({ rank: i + 1, ...row }));
     const rank = mine ? ranked.find((r) => r.points === mine.points && r.display_name === mine.display_name)?.rank ?? null : null;
 
-    return json({ top: ranked, mine: mine ? { ...mine, rank } : null });
+    return json({
+      top: ranked,
+      mine: mine ? { ...mine, rank } : null,
+      closesAt: contestEndsAt()?.toISOString() ?? null,
+      closed: contestIsClosed(),
+    });
   } catch (err) {
     console.error("leaderboard failed", err);
     return fail(500, "Could not load the leaderboard");

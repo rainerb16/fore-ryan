@@ -4,7 +4,7 @@
 // run was actually started here and has not been submitted before.
 
 import { consumeToken, findToken, insertRun, recentRunCount } from "./_db";
-import { RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
+import { contestIsClosed, RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
 import { cleanName, clientIp, fail, hashEmail, hashIp, json, looksLikeEmail } from "./_http";
 import { validateRun } from "../../shared/scoring";
 import type { RunSummary } from "../../shared/types";
@@ -22,6 +22,10 @@ const isUuid = (v: unknown): v is string =>
 
 export default async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return fail(405, "Use POST");
+
+  if (contestIsClosed()) {
+    return fail(403, "The contest has closed — this run can no longer be posted");
+  }
 
   let body: Payload;
   try {

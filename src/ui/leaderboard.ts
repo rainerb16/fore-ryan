@@ -22,6 +22,14 @@ const EMAIL_KEY = "ryanbday.email";
 let pending: { summary: RunSummary; token: string | null } | null = null;
 let posting = false;
 
+/** "Closes on 3 September" while it runs, past tense once it has. */
+function deadlineNote(closesAt: string, closed: boolean): string {
+  const when = new Date(closesAt);
+  if (Number.isNaN(when.getTime())) return "";
+  const date = when.toLocaleDateString(undefined, { day: "numeric", month: "long" });
+  return closed ? `Contest closed on ${date}` : `Contest closes ${date}`;
+}
+
 export const formatDuration = (ms: number): string => {
   const total = Math.round(ms / 1000);
   const mins = Math.floor(total / 60);
@@ -130,10 +138,14 @@ export async function loadBoard(): Promise<void> {
 
   try {
     const email = store.get(EMAIL_KEY, "") || null;
-    const { top, mine } = await fetchLeaderboard(email);
+    const { top, mine, closesAt, closed } = await fetchLeaderboard(email);
+
+    const deadline = closesAt ? deadlineNote(closesAt, closed === true) : "";
 
     if (top.length === 0) {
-      boardStatus.textContent = "No runs posted yet — be the first. ⛳";
+      boardStatus.textContent = closed
+        ? "The contest closed with no runs posted."
+        : `No runs posted yet — be the first. ⛳${deadline ? ` ${deadline}` : ""}`;
       return;
     }
 
@@ -147,7 +159,8 @@ export async function loadBoard(): Promise<void> {
       gap.textContent = "⋯";
       boardList.append(gap, row(mine, true));
     }
-    boardStatus.textContent = mine ? "" : "Play a contest run to get on the board.";
+    const prompt = mine ? "" : "Play a contest run to get on the board.";
+    boardStatus.textContent = [deadline, prompt].filter(Boolean).join(" · ");
   } catch (err) {
     boardStatus.textContent =
       err instanceof Error ? err.message : "Could not load the leaderboard";

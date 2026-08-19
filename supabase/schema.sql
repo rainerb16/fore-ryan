@@ -1,5 +1,6 @@
 -- Fore Ryan! leaderboard schema.
--- Run this once in the Supabase SQL editor (Dashboard -> SQL Editor -> New query).
+-- Run this in the Supabase SQL editor (Dashboard -> SQL Editor -> New query).
+-- Every statement is idempotent, so it is safe to re-run after a change here.
 --
 -- Nothing here is reachable with the anon key. Row Level Security is on and no
 -- policies are granted, so the only way in is a Netlify Function holding the
@@ -18,6 +19,8 @@ create table if not exists run_tokens (
 );
 
 create index if not exists run_tokens_issued_at_idx on run_tokens (issued_at desc);
+-- Supports the per-address rate limit on issuing tokens.
+create index if not exists run_tokens_ip_hash_idx on run_tokens (ip_hash, issued_at desc);
 
 -- --------------------------------------------------------------------------
 -- runs: one row per submitted contest run.

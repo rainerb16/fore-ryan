@@ -16,6 +16,9 @@ export interface LeaderboardEntry {
 export interface LeaderboardData {
   top: LeaderboardEntry[];
   mine: LeaderboardEntry | null;
+  /** ISO timestamp the contest closes, or null if it runs indefinitely. */
+  closesAt?: string | null;
+  closed?: boolean;
 }
 
 export type SubmitResult =

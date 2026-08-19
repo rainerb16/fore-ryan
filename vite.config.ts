@@ -81,8 +81,24 @@ function netlifyFunctionsDev(): Plugin {
   };
 }
 
+/**
+ * Fills %SITE_URL% in index.html. Link previews need an absolute image URL, and
+ * the domain is only known to the build — Netlify puts it in URL, or in
+ * DEPLOY_PRIME_URL for a branch build. Locally there is no domain, so it
+ * collapses to a relative path, which is fine because nothing scrapes localhost.
+ */
+function siteUrlPlugin(): Plugin {
+  return {
+    name: "site-url",
+    transformIndexHtml(html) {
+      const url = (process.env.URL ?? process.env.DEPLOY_PRIME_URL ?? "").replace(/\/+$/, "");
+      return html.replace(/%SITE_URL%/g, url);
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [netlifyFunctionsDev()],
+  plugins: [netlifyFunctionsDev(), siteUrlPlugin()],
   build: {
     target: "es2020",
     outDir: "dist",

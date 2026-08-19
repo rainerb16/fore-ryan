@@ -25,6 +25,17 @@ if (!inlineStyle || !/background:\s*#0b0720/.test(inlineStyle.textContent)) {
 if (head.indexOf("<style") > head.indexOf("stylesheet")) {
   fail("the inline style must come before the stylesheet link");
 }
+
+// Link preview, for when this gets pasted into Slack or a mail.
+for (const prop of ["og:title", "og:description", "og:image", "twitter:card"]) {
+  const attr = prop.startsWith("og:") ? "property" : "name";
+  const tag = g.doc.querySelector(`meta[${attr}="${prop}"]`);
+  if (!tag?.getAttribute("content")) fail(`missing or empty <meta ${attr}="${prop}">`);
+}
+const ogImage = g.doc.querySelector('meta[property="og:image"]').getAttribute("content");
+if (ogImage.includes("%SITE_URL%")) fail("og:image still contains the %SITE_URL% placeholder");
+if (!ogImage.endsWith("/og.png")) fail(`og:image points somewhere unexpected: ${ogImage}`);
+console.log("link preview       :", ogImage);
 console.log("boot ok            :", g.text("startHint"));
 
 // --- birthday round ---------------------------------------------------------

@@ -51,9 +51,24 @@ function installFakeDatabase() {
     const idIn = (p) => decodeURIComponent(p.match(/token=eq\.([^&]+)/)[1]);
 
     if (path === "run_tokens" && method === "POST") {
-      const row = { token: randomUUID(), issued_at: new Date().toISOString(), used_at: null };
+      const row = {
+        token: randomUUID(),
+        issued_at: new Date().toISOString(),
+        used_at: null,
+        ip_hash: JSON.parse(init.body).ip_hash,
+      };
       tokens.set(row.token, row);
       return ok([row]);
+    }
+
+    // Counting tokens for one address, for the run-start rate limit.
+    if (path.startsWith("run_tokens?ip_hash=eq.") && method === "GET") {
+      const hash = decodeURIComponent(path.match(/ip_hash=eq\.([^&]+)/)[1]);
+      const since = Date.parse(decodeURIComponent(path.match(/issued_at=gte\.([^&]+)/)[1]));
+      const n = [...tokens.values()].filter(
+        (t) => t.ip_hash === hash && Date.parse(t.issued_at) >= since,
+      ).length;
+      return ok([], { "content-range": "0-0/" + n });
     }
 
     if (path.startsWith("run_tokens?") && method === "GET") {
@@ -131,6 +146,49 @@ const goodSubmission = (over = {}) => ({
 });
 
 // --- run-start --------------------------------------------------------------
+
+const startRunReq = (ip = "203.0.113.7") =>
+  runStart(
+    new Request("https://example.com/api/run-start", {
+      method: "POST",
+      headers: { "x-nf-client-connection-ip": ip },
+    }),
+  );
+
+test("run-start caps how many tokens one address can mint", async () => {
+  for (let i = 0; i < 60; i++) {
+    assert.equal((await startRunReq()).status, 200, `token ${i + 1} should be issued`);
+  }
+  const blocked = await startRunReq();
+  assert.equal(blocked.status, 429);
+  assert.equal(tokens.size, 60, "the blocked request must not create a row");
+});
+
+test("the contest deadline closes both endpoints", async () => {
+  process.env.CONTEST_ENDS_AT = "2020-01-01T00:00:00Z"; // long past
+
+  const started = await startRunReq();
+  assert.equal(started.status, 403, "no new runs once the contest has closed");
+
+  const submitted = await post(goodSubmission());
+  assert.equal(submitted.status, 403);
+  assert.equal(runs.length, 0);
+
+  delete process.env.CONTEST_ENDS_AT;
+});
+
+test("a deadline in the future changes nothing", async () => {
+  process.env.CONTEST_ENDS_AT = "2099-01-01T00:00:00Z";
+  assert.equal((await startRunReq()).status, 200);
+  assert.equal((await post(goodSubmission())).status, 200);
+  delete process.env.CONTEST_ENDS_AT;
+});
+
+test("an unparseable deadline is ignored rather than closing the contest", async () => {
+  process.env.CONTEST_ENDS_AT = "next Tuesday-ish";
+  assert.equal((await startRunReq()).status, 200, "a bad date must not lock everyone out");
+  delete process.env.CONTEST_ENDS_AT;
+});
 
 test("run-start issues a token and rejects GET", async () => {
   const bad = await runStart(new Request("https://example.com/api/run-start"));

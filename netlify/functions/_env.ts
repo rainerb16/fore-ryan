@@ -18,5 +18,33 @@ export const WALL_CLOCK_SLACK = 0.85;
 /** Submissions per email hash per hour. */
 export const RATE_LIMIT_PER_HOUR = 20;
 
+/**
+ * Run tokens per IP per hour. Starting a contest run costs a database row, so
+ * without this the one endpoint that needs no credentials will mint them as fast
+ * as it is asked. Set well above anything a person could reach by playing.
+ */
+export const TOKENS_PER_HOUR = 60;
+
+/**
+ * When the contest closes, as an ISO timestamp in CONTEST_ENDS_AT. Unset means it
+ * runs indefinitely. Past it, runs are refused — but the standings stay readable,
+ * so people can still see who won.
+ */
+export function contestEndsAt(): Date | null {
+  const raw = process.env.CONTEST_ENDS_AT;
+  if (!raw) return null;
+  const when = new Date(raw);
+  if (Number.isNaN(when.getTime())) {
+    console.warn(`Ignoring unparseable CONTEST_ENDS_AT: ${raw}`);
+    return null;
+  }
+  return when;
+}
+
+export function contestIsClosed(): boolean {
+  const ends = contestEndsAt();
+  return ends !== null && Date.now() > ends.getTime();
+}
+
 export const MAX_NAME_LENGTH = 40;
 export const LEADERBOARD_LIMIT = 25;

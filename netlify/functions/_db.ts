@@ -61,6 +61,17 @@ export async function consumeToken(token: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/** Tokens issued to this address in the last hour, for rate limiting run starts. */
+export async function recentTokenCount(ipHash: string): Promise<number> {
+  const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const res = await rest(
+    `run_tokens?ip_hash=eq.${encodeURIComponent(ipHash)}&issued_at=gte.${since}&select=token`,
+    { headers: { Prefer: "count=exact", Range: "0-0" } },
+  );
+  const range = res.headers.get("content-range"); // "0-0/12"
+  return Number(range?.split("/")[1] ?? 0);
+}
+
 export interface RunRow {
   display_name: string;
   email_hash: string;
