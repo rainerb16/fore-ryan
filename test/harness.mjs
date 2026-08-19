@@ -7,7 +7,7 @@ import { JSDOM } from "jsdom";
 const gradient = { addColorStop() {} };
 
 /** Records what was drawn as text, so tests can see which glyphs a level uses. */
-function stubContext(drawnText) {
+function stubContext(drawnText, drawnImages) {
   return new Proxy(
     {
       canvas: null,
@@ -15,6 +15,7 @@ function stubContext(drawnText) {
       createRadialGradient: () => gradient,
       measureText: () => ({ width: 10 }),
       fillText: (text) => drawnText.push(text),
+      drawImage: () => drawnImages.push(1),
     },
     {
       get: (target, prop) => (prop in target ? target[prop] : () => {}),
@@ -44,7 +45,8 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
   const doc = window.document;
 
   const drawnText = [];
-  window.HTMLCanvasElement.prototype.getContext = () => stubContext(drawnText);
+  const drawnImages = [];
+  window.HTMLCanvasElement.prototype.getContext = () => stubContext(drawnText, drawnImages);
   Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { get: () => 1024 });
   Object.defineProperty(window.HTMLElement.prototype, "clientHeight", { get: () => 720 });
 
@@ -125,5 +127,6 @@ export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
     roundOver,
     errors,
     drawnText,
+    drawnImages,
   };
 }

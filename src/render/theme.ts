@@ -8,6 +8,7 @@
 
 import { AUTHORED_LEVELS, type HazardType } from "../../shared/rules";
 import { decorEls, stage } from "../ui/dom";
+import { invalidateScenery, type SceneryKind } from "./scenery";
 
 interface HazardLook {
   /** What gets drawn. Keep it chunky — players have to dodge it. */
@@ -30,6 +31,10 @@ export interface Theme {
   fairwayTop: string;
   fairwayBottom: string;
   decor: readonly [string, string, string, string];
+  /** Which horizon is painted behind the play area. */
+  scenery: SceneryKind;
+  /** Silhouette colour for that horizon. */
+  sceneryInk: string;
   hazards: Record<HazardType, HazardLook>;
 }
 
@@ -44,6 +49,8 @@ const DRIVING_RANGE: Theme = {
   skyBase: "#14092c",
   fairwayTop: "rgba(38,120,84,0)",
   fairwayBottom: "rgba(46,142,96,.26)",
+  scenery: "range",
+  sceneryInk: "#0d0722",
   decor: ["⛳", "🎈", "🏌️", "🎈"],
   hazards: {
     water: { glyph: "💧", spark: "#7fd4ff" },
@@ -61,6 +68,8 @@ const FRONT_NINE: Theme = {
   skyBase: "#1b0f2b",
   fairwayTop: "rgba(60,150,96,0)",
   fairwayBottom: "rgba(86,176,110,.28)",
+  scenery: "hills",
+  sceneryInk: "#1a0d28",
   decor: ["⛳", "🌅", "🏌️", "🎈"],
   hazards: {
     // Deliberately not the level 1 droplet — the first level change should be
@@ -80,6 +89,8 @@ const WATER_HAZARD: Theme = {
   skyBase: "#04182c",
   fairwayTop: "rgba(40,150,170,0)",
   fairwayBottom: "rgba(60,180,200,.28)",
+  scenery: "water",
+  sceneryInk: "#03121f",
   decor: ["💧", "🌊", "⛳", "🐟"],
   hazards: {
     water: { glyph: "🌊", spark: "#7fd4ff" },
@@ -97,6 +108,8 @@ const THE_WOODS: Theme = {
   skyBase: "#071409",
   fairwayTop: "rgba(30,110,60,0)",
   fairwayBottom: "rgba(48,140,80,.30)",
+  scenery: "pines",
+  sceneryInk: "#04120a",
   decor: ["🌲", "🌳", "⛳", "🦌"],
   hazards: {
     water: { glyph: "🍂", spark: "#e09a5a" },
@@ -114,6 +127,8 @@ const CHAMPIONSHIP: Theme = {
   skyBase: "#120829",
   fairwayTop: "rgba(90,80,160,0)",
   fairwayBottom: "rgba(120,105,190,.26)",
+  scenery: "stands",
+  sceneryInk: "#0d0620",
   decor: ["🏆", "⛳", "🎖️", "🎉"],
   hazards: {
     // Errant golfers and marker flags, on a course that has stopped being polite.
@@ -135,6 +150,8 @@ const SUDDEN_DEATH_NIGHT: Theme = {
   skyBase: "#03040a",
   fairwayTop: "rgba(60,70,140,0)",
   fairwayBottom: "rgba(80,95,170,.26)",
+  scenery: "peaks",
+  sceneryInk: "#02030a",
   decor: ["🌙", "⛳", "⭐", "🌙"],
   hazards: {
     water: { glyph: "❄️", spark: "#bfe6ff" },
@@ -152,6 +169,8 @@ const SUDDEN_DEATH_FIRE: Theme = {
   skyBase: "#170408",
   fairwayTop: "rgba(150,50,60,0)",
   fairwayBottom: "rgba(190,70,80,.26)",
+  scenery: "volcano",
+  sceneryInk: "#170305",
   decor: ["🔥", "⛳", "💀", "🔥"],
   hazards: {
     water: { glyph: "☄️", spark: "#ffcf7a" },
@@ -183,6 +202,7 @@ export const hazardSpark = (type: HazardType): string => activeTheme.hazards[typ
 export function applyTheme(level: number): void {
   const theme = themeFor(level);
   activeTheme = theme;
+  invalidateScenery();
 
   stage.style.setProperty("--glow-a", theme.glowA);
   stage.style.setProperty("--glow-b", theme.glowB);

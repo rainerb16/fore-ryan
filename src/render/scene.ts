@@ -4,6 +4,7 @@ import { rand } from "../game/rng";
 import { confetti, game, hazards, holes, player, shots, sparks } from "../game/state";
 import { ctx } from "../ui/dom";
 import { drawGolfBall, drawHead, drawHole } from "./shapes";
+import { drawScenery } from "./scenery";
 import { activeTheme, hazardGlyph } from "./theme";
 
 function drawFairway(): void {
@@ -17,6 +18,7 @@ function drawFairway(): void {
 
 export function draw(): void {
   ctx.clearRect(0, 0, game.W, game.H);
+  drawScenery(ctx, game.W, game.H, game.scale, game.dpr);
   drawFairway();
 
   ctx.save();

@@ -11,6 +11,7 @@ import {
   SHOT_R,
   SHOT_SPEED,
 } from "./config";
+import { invalidateScenery } from "../render/scenery";
 import { clampPlayer, headHalfH } from "./metrics";
 import { pick, pickWeighted, rand } from "./rng";
 import { confetti, game, hazards, holes, player, shots, sparks } from "./state";
@@ -19,6 +20,7 @@ import type { Hole } from "./types";
 // --- viewport ---------------------------------------------------------------
 export function resize(): void {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  game.dpr = dpr;
   game.W = canvas.clientWidth;
   game.H = canvas.clientHeight;
   canvas.width = Math.round(game.W * dpr);
@@ -28,6 +30,7 @@ export function resize(): void {
   game.baseHeadR = HEAD_R * game.scale;
   clampPlayer();
   layoutHoles();
+  invalidateScenery();
 }
 
 window.addEventListener("resize", resize);

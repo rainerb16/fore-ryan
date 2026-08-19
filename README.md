@@ -44,7 +44,7 @@ npm run check      # all three
 | `src/game/audio.ts` | WebAudio synthesis and the mute toggle |
 | `src/game/images.ts` | Head cutout loading and trim |
 | `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
-| `src/render/` | Canvas drawing, per-level themes, and the overlay portraits |
+| `src/render/` | Canvas drawing, per-level themes and scenery, overlay portraits |
 | `src/ui/` | DOM refs, HUD, banner, screens, and the leaderboard |
 | `src/net/api.ts` | Calls to the leaderboard endpoints |
 | `netlify/functions/` | The leaderboard API — token issue, submission, standings |
@@ -75,14 +75,20 @@ resets to normal at the start of every level.
 Five levels are hand-tuned in `shared/rules.ts`; past those the tail is generated from the
 last one and keeps tightening on every axis with no plateau.
 
-| Level | Name | Holes | Backdrop | Hazards |
-| --- | --- | --- | --- | --- |
-| 1 | Driving Range | 5 | Purple night | 💧 🌳 |
-| 2 | Front Nine | 6 | Sunrise | 🌧️ 🌾 |
-| 3 | Water Hazard | 7 | Deep teal | 🌊 🦆 |
-| 4 | The Woods | 8 | Dark forest | 🍂 🌲 |
-| 5 | Championship | 9 | Royal and gold | 🏌️ 🚩 |
-| 6+ | Sudden Death | up to 12 | Midnight / fire, alternating | ❄️ ⭐ / ☄️ 🌋 |
+| Level | Name | Holes | Backdrop | Horizon | Hazards |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Driving Range | 5 | Purple night | Mounds and distance flags | 💧 🌳 |
+| 2 | Front Nine | 6 | Sunrise | Rolling hills | 🌧️ 🌾 |
+| 3 | Water Hazard | 7 | Deep teal | A pond with ripples | 🌊 🦆 |
+| 4 | The Woods | 8 | Dark forest | A treeline of pines | 🍂 🌲 |
+| 5 | Championship | 9 | Royal and gold | Grandstands and pennants | 🏌️ 🚩 |
+| 6+ | Sudden Death | up to 12 | Midnight / fire | Starlit peaks / a lit volcano | ❄️ ⭐ / ☄️ 🌋 |
+
+The horizon is drawn procedurally in `src/render/scenery.ts` — still no image files.
+Layout comes from a seeded generator, so a level's skyline is the same every time you see
+it rather than crawling about between frames, and the whole thing is painted once into an
+offscreen canvas and blitted, so it costs one `drawImage` per frame no matter how many
+trees are in it.
 
 Level 1 is the birthday round and is unchanged from the original game. Each level starts
 from a clean board, its own difficulty baseline, and its own sky; a timed ramp then builds

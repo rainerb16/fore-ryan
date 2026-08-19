@@ -9,6 +9,8 @@ export const game = {
   W: 0,
   H: 0,
   scale: 1,
+  /** Device pixel ratio the canvas was sized at. */
+  dpr: 1,
   baseHeadR: HEAD_R,
   state: STATE.START as GameState,
   mode: MODE.BIRTHDAY as GameMode,

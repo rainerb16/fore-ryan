@@ -226,6 +226,19 @@ test("hazards are reskinned per level", async () => {
   assert.ok(!drawn.has("🌳"), `level ${levelNow()} still drew the level 1 tree`);
 });
 
+test("the horizon is painted behind the play area", async () => {
+  const api = fakeApi();
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("contestBtn");
+  g.drawnImages.length = 0;
+  await g.tick(60);
+
+  // The scenery is cached to an offscreen canvas and blitted every frame, so a
+  // frame with no drawImage means the horizon stopped being drawn at all.
+  assert.ok(g.drawnImages.length >= 60, `expected a blit per frame, got ${g.drawnImages.length}`);
+});
+
 test("the birthday round always uses the level 1 look", async () => {
   const api = fakeApi();
   const g = bootGame({ fetch: api.fetch });
