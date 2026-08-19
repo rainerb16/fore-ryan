@@ -1,8 +1,30 @@
 // The leaderboard UI against a fake API. Covers the paths the smoke test cannot,
 // since it deliberately runs with no network at all.
 import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test, { after } from "node:test";
+import { build } from "esbuild";
 import { bootGame } from "./harness.mjs";
+
+// The fake backend runs the real validator, so these tests prove the summaries
+// the game actually produces are ones the server will accept. Stubbing that out
+// would let the two drift apart silently, which is the whole thing shared/ exists
+// to prevent.
+const dir = mkdtempSync(join(tmpdir(), "fore-ryan-ui-"));
+after(() => rmSync(dir, { recursive: true, force: true }));
+
+const outfile = join(dir, "shared.mjs");
+await build({
+  entryPoints: ["test/shared-entry.ts"],
+  outfile,
+  bundle: true,
+  format: "esm",
+  platform: "neutral",
+  logLevel: "warning",
+});
+const { validateRun } = await import("file://" + outfile);
 
 const ENTRIES = [
   { rank: 1, display_name: "Dana", points: 18400, level_reached: 7, levels_cleared: 6, duration_ms: 240000, created_at: "2026-08-18T10:00:00Z" },
@@ -22,7 +44,17 @@ function fakeApi(routes = {}) {
     if (routes[path]) return routes[path](url, init);
     if (path === "/api/run-start") return ok({ token: "11111111-2222-3333-4444-555555555555" });
     if (path === "/api/leaderboard") return ok({ top: ENTRIES, mine: null });
-    if (path === "/api/submit-run") return ok({ points: 12050 });
+    if (path === "/api/submit-run") {
+      // The real gate, not a rubber stamp.
+      const result = validateRun(JSON.parse(init.body).summary);
+      if (!result.ok) {
+        return new Response(
+          JSON.stringify({ error: `That run did not add up: ${result.reasons.join("; ")}` }),
+          { status: 422 },
+        );
+      }
+      return ok({ points: result.computedPoints });
+    }
     throw new Error(`unexpected request: ${path}`);
   };
 
@@ -275,6 +307,11 @@ test("a finished run posts the score and reports the rank", async () => {
   assert.equal(body.email, "ryan@example.com");
   assert.equal(body.token, "11111111-2222-3333-4444-555555555555");
   assert.ok(body.summary.levels.length > 0, "the per-level stats must be included");
+
+  // The run was accepted by the real validator, not a stub — a genuinely played
+  // run has to survive the same gate the server applies.
+  const verdict = validateRun(body.summary);
+  assert.deepEqual(verdict.reasons, [], "a real run must satisfy the server's own rules");
 
   assert.match(g.text("submitStatus"), /Posted/);
   assert.match(g.text("submitStatus"), /#2/, "the rank is the payoff");

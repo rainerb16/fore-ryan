@@ -134,6 +134,19 @@ test("the claimed score is ignored — the server recomputes it", () => {
   assert.notEqual(res.computedPoints, inflated.points);
 });
 
+test("a level you died on moments after it started is not impossible", () => {
+  // Dying seconds into a level is the normal way a contest run ends, and it gets
+  // more common the deeper you go. The speed floor only applies to holes that
+  // were actually sunk.
+  const levels = [
+    clearedL1,
+    clearedL2,
+    { level: 3, holes: 0, shots: 2, durationMs: 700, livesLost: 3 },
+  ];
+  const res = validateRun(summaryOf(levels));
+  assert.deepEqual(res.reasons, [], "an ordinary quick death must validate");
+});
+
 test("rejects a level cleared faster than the fire rate allows", () => {
   const res = validateRun(summaryOf([{ ...clearedL1, durationMs: 500, shots: 5 }]));
   assert.ok(!res.ok);

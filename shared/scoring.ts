@@ -42,13 +42,19 @@ export function runTotal(levels: readonly LevelStats[]): number {
 // --- validation -------------------------------------------------------------
 
 /**
- * Fastest a level could physically be cleared: one shot per hole at the fire-rate
- * ceiling, plus a beat for the last ball to reach the cup. Generous on purpose —
- * this rejects fabricated scores, not good players.
+ * Fastest the holes actually sunk could physically have been sunk: one shot each
+ * at the fire-rate ceiling, plus a beat for the last ball to reach the cup.
+ *
+ * This scales with holes rather than with the level's target, because the level a
+ * run ends on is usually cut short. Measuring it against a full clear would call
+ * an ordinary quick death impossible — and the deeper the level, the more holes
+ * it needs, so the higher someone climbed the more certainly their run would be
+ * thrown out. Generous on purpose: this rejects fabricated scores, not players.
  */
-export function minLevelMs(level: number): number {
+export function minLevelMs(level: number, holes?: number): number {
   const cfg = levelConfig(level);
-  return cfg.holesToClear * SHOT_COOLDOWN + 400;
+  const sunk = Math.min(holes ?? cfg.holesToClear, cfg.holesToClear);
+  return sunk > 0 ? sunk * SHOT_COOLDOWN + 400 : 0;
 }
 
 export interface ValidationResult {
@@ -78,7 +84,9 @@ export function validateRun(summary: RunSummary): ValidationResult {
     if (s.level !== i + 1) reasons.push(`${where}: levels out of sequence`);
     if (s.holes < 0 || s.holes > cfg.holesToClear) reasons.push(`${where}: hole count out of range`);
     if (s.shots < s.holes) reasons.push(`${where}: more holes than shots`);
-    if (s.durationMs < minLevelMs(s.level)) reasons.push(`${where}: cleared faster than possible`);
+    if (s.durationMs < minLevelMs(s.level, s.holes)) {
+      reasons.push(`${where}: sunk faster than possible`);
+    }
     if (s.shots > s.durationMs / SHOT_COOLDOWN + 2) reasons.push(`${where}: fire rate exceeded`);
     if (s.livesLost < 0 || s.livesLost > CONTEST_LIVES) reasons.push(`${where}: bad life count`);
 
