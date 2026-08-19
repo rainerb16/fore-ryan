@@ -32,6 +32,10 @@ for (const prop of ["og:title", "og:description", "og:image", "twitter:card"]) {
   const tag = g.doc.querySelector(`meta[${attr}="${prop}"]`);
   if (!tag?.getAttribute("content")) fail(`missing or empty <meta ${attr}="${prop}">`);
 }
+for (const rel of ["icon", "apple-touch-icon"]) {
+  if (!g.doc.querySelector(`link[rel="${rel}"]`)) fail(`missing <link rel="${rel}">`);
+}
+
 const ogImage = g.doc.querySelector('meta[property="og:image"]').getAttribute("content");
 if (ogImage.includes("%SITE_URL%")) fail("og:image still contains the %SITE_URL% placeholder");
 if (!ogImage.endsWith("/og.png")) fail(`og:image points somewhere unexpected: ${ogImage}`);
