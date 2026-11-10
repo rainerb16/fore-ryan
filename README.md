@@ -1,127 +1,246 @@
-# Fore Ryan! ⛳🎉
+# Ryan Arcade 🕹️
 
-A browser game. Ryan's floating head launches golf balls at holes sliding across the top of
-the screen while dodging falling trees and water hazards.
+A small, growing arcade of browser games made as gifts for Ryan, with a new game for each
+birthday, Christmas, and Easter. The lobby is a 3D arcade room. Each game is an upright
+cabinet whose screen runs in attract mode, cycling gameplay, its top three scores, and
+INSERT COIN.
 
-Two ways to play:
+| Game | Occasion | Path |
+| --- | --- | --- |
+| **Fore Ryan!** ⛳ | Birthday 2026 | `/games/birthday-2026/` |
 
-- **Birthday Round** — the gift. Sink 5 holes and the payoff fires: slow-motion on the
-  winning shot, a screen flash, confetti rain, a party hat, and the "Happy Birthday" melody.
-- **Contest Mode** — the leaderboard run. Five lives, carried across levels that keep
-  getting harder until one of them finishes you. Points rank the contest.
-
-No runtime dependencies and no audio or image files beyond the one head cutout — the only
-tooling is Vite and TypeScript for the build.
+Coded by Rainer B.
 
 ## Getting started
 
 ```sh
 npm install
-npm run dev        # local dev server with hot reload
-npm run build      # typecheck, then bundle to dist/
+npm run dev        # lobby, games, and the API, with hot reload
+npm run build      # typecheck, then bundle every page to dist/
 npm run preview    # serve the production build
-npm test           # build, then rules, API, and leaderboard UI
-npm run smoke      # build, then play both modes headlessly in jsdom
-npm run check      # all three
+npm test           # build, then rules, scores, API, lobby, and game UI tests
+npm run smoke      # build, then play both golf modes headlessly in jsdom
+npm run check      # typecheck, tests, and smoke test together
+npm run thumbs     # regenerate the cabinet-screen thumbnails (see below)
 ```
+
+On this machine the repo lives on a WSL path, so run npm inside WSL rather than from Windows.
 
 ## Layout
 
 | Path | Purpose |
 | --- | --- |
-| `shared/rules.ts` | Levels, hazards, and the constants the server also needs |
-| `shared/scoring.ts` | The points formula and the submission validator |
-| `shared/types.ts` | Level and run shapes exchanged with the backend |
-| `index.html` | Page shell — HUD, level banner, and the overlay screens |
+| `index.html`, `src/lobby/` | The 3D arcade lobby |
+| `games/<id>/` | One folder per game, each with its own `index.html` |
+| `shared/games.ts` | The game registry: id, title, occasion, year, sort order, path |
+| `shared/scores.ts` | The scores adapter every game uses to start runs, post scores, and read standings |
+| `shared/names.ts` | Name cleaning, shared by browser and server (1–20 characters) |
+| `shared/storage.ts` | `localStorage` that never throws |
+| `shared/three.ts`, `shared/webgl.ts` | Renderer setup and the WebGL check for 3D pages |
+| `netlify/functions/` | The leaderboard API: token issue, submission, standings |
+| `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |
+| `public/assets/ryan/` | The head cutout every game uses |
+| `public/assets/af/` | Action Furnace logo and mascot for the lobby poster |
+| `public/assets/thumbs/` | Gameplay thumbnails for the cabinet screens |
+| `scripts/` | Generates thumbnails, the link-preview card, and the favicons |
+| `test/` | Unit, API, lobby, and game UI tests, plus the headless smoke test |
+
+**Keep the arcade thin.** A module moves into `shared/` only once two games actually need it.
+Game-specific code, including scoring rules the server checks, stays inside the game's
+folder.
+
+## The lobby
+
+`src/lobby/` builds the room in Three.js:
+- `arcade.ts`: the cabinet row and the camera on rails
+- `cabinet.ts`: one upright cabinet
+- `screen.ts`: the attract-mode CRT
+- `room.ts`: carpet, wall, neon sign, and lighting
+- `look.ts`: reflections and bloom
+- `poster.ts`: the Action Furnace poster
+
+Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
+a tap on the focused cabinet zooms into its screen and loads the game.
+
+Each playable game gets a lit cabinet. A "Coming soon" cabinet and a few "Out of order"
+machines fill out the row; they're scenery only.
+
+- **Phones** get a smaller shadow map and half-resolution bloom. The pixel ratio is capped
+  at 1.5 everywhere.
+- **Three.js** loads only once the 3D lobby starts.
+- **Without WebGL**, the same games show as a plain list with their top three scores. The
+  list is always in the page, visually hidden beside the 3D room, so keyboard and
+  screen-reader users can use it too.
+
+### Cabinet thumbnails
+
+Each cabinet's screen shows `public/assets/thumbs/<game id>.jpg` when it exists. The
+thumbnails are real gameplay, captured by driving the built game in headless Chrome:
+
+```sh
+npm run build && npx vite preview --port 4199     # leave running
+CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe" npm run thumbs
+```
+
+`scripts/make-thumbnails.mjs` lists the steps that bring each game to a good moment. It
+needs Node 22 or later, for the built-in WebSocket.
+
+## Adding a game
+
+1. Create `games/<occasion>-<year>/` with its own `index.html`, and name it by occasion
+   and year, never by mechanic.
+2. Add it to `GAMES` in `shared/games.ts`, and add its page to `rollupOptions.input` in
+   `vite.config.ts`.
+3. Use `shared/scores.ts` for runs and standings.
+4. Add a capture step to `scripts/make-thumbnails.mjs` and run `npm run thumbs`.
+
+## Scores
+
+Games call three functions in `shared/scores.ts`:
+
+```ts
+startRun(gameId)                                            // a run token, or null
+submitRun(gameId, token, { displayName, points, durationMs, details })
+getLeaderboard(gameId, limit = 10)                          // best run per player
+```
+
+`details` carries the game's own stats. The server derives the score from them and never
+trusts the claimed points.
+
+**When the backend is down, the games still work.** If the API is unreachable or returns a
+server error, runs and standings fall back to this device's `localStorage`, and a warning
+goes to the console. If the server *refuses* a run, the player sees why and the run is
+never saved locally. That covers a closed contest, a rate limit, or a run that didn't add
+up.
+
+## Leaderboard backend
+
+Runs go to Netlify Functions, which are the only thing that talks to Supabase. Row Level
+Security is on with no policies granted, so the anon key opens nothing and never ships to
+the browser.
+
+| Endpoint | Purpose |
+| --- | --- |
+| `POST /api/run-start` | Issues the token a run must present to be submitted |
+| `POST /api/submit-run` | Validates a finished run and stores it |
+| `GET /api/leaderboard` | Top standings, one best run per person |
+
+`npm run dev` mounts the same handlers on the same paths, compiled from source, so one
+command runs the whole thing against a real Supabase project. Copy `.env.example` to `.env`
+and fill it in; `.env` is gitignored. Without it, the games use the local fallback.
+
+`supabase/schema.sql` creates the tables. Run it once in the Supabase SQL editor.
+
+### What stops a fake score
+
+The client is assumed to be hostile. `submit-run` treats the score attached to a run as a
+claim to be thrown away:
+
+1. The game's validator recomputes the score from the stats, and checks the stats themselves
+   are physically possible.
+2. The run token must exist, be unused, and be less than six hours old.
+3. Wall clock: a run claiming 90 seconds of play can't be submitted 10 seconds after its
+   token was issued.
+4. Consuming the token is a conditional update, so two racing submissions can't both win.
+   That's the replay check.
+5. Rate limits: 20 submissions per player per hour, and 60 run starts per address.
+
+The stored score is always the server's own number. The client's claim is kept in
+`client_meta`, so a suspicious run can be looked at rather than guessed about.
+
+### Identity
+
+A first name is all anyone is asked for. Alongside it the browser keeps a random player id
+in `localStorage`, so a person's runs collapse to their best and they can see their own
+standing. Nothing is trusted to it: clearing site data makes you a new player. Addresses
+are only ever stored hashed, for rate limiting.
+
+### Environment variables
+
+Set these in Netlify under **Site configuration → Environment variables**:
+
+| Variable | Where it comes from |
+| --- | --- |
+| `SUPABASE_URL` | Supabase → Project Settings → Data API |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys. Server only |
+| `HASH_SALT` | Any long random string you generate once. `EMAIL_HASH_SALT` is still accepted |
+| `CONTEST_ENDS_AT` | Optional ISO timestamp. After it, runs can't be started or posted; the standings stay readable |
+
+The service role key bypasses Row Level Security. It belongs only in Netlify's environment,
+never in the repo or in client code.
+
+## Deploy (Netlify)
+
+Netlify builds with `npm run build` and publishes `dist/`; both are set in `netlify.toml`.
+The site root serves the lobby, so the shareable link is just the domain.
+
+The link preview (`public/og.png`) and the favicons are generated by `scripts/make-og.mjs`
+and `scripts/make-icons.mjs`, then committed, so a build never needs the image tools. The
+absolute URL the preview tags need is filled in at build time from Netlify's own `URL`.
+
+---
+
+## Fore Ryan! ⛳ (Birthday 2026)
+
+Ryan's floating head launches golf balls at holes sliding across the top of the screen,
+while dodging falling trees and water hazards.
+
+- **Birthday Round**: the gift. Sink 5 holes and the payoff fires: slow motion on the
+  winning shot, a screen flash, confetti, a party hat, and the "Happy Birthday" melody.
+- **Contest Mode**: the leaderboard run. Five lives, carried across levels that keep
+  getting harder until one of them finishes you.
+
+### Controls
+
+- **Desktop:** ← / → or A / D to move, hold Space to shoot, Enter starts and restarts.
+- **Mobile:** touch and drag to move; balls fire automatically while you hold.
+
+Hazards block shots mid-air and cost a life on contact. Each hole sunk makes Ryan's head
+bigger, and it resets at the start of every level.
+
+### Where things are
+
+Everything lives under `games/birthday-2026/`:
+
+| Path | Purpose |
+| --- | --- |
+| `rules/rules.ts` | Levels, hazards, and the constants the server also needs |
+| `rules/scoring.ts` | The points formula and the submission validator |
+| `rules/types.ts` | Level and run shapes exchanged with the backend |
+| `index.html` | Page shell: HUD, level banner, and the overlay screens |
 | `src/main.ts` | Bootstrap: wires buttons, loads images, starts the loop |
-| `src/styles.css` | All styling |
-| `src/game/config.ts` | Client-only tuning constants |
-| `src/game/state.ts` | Shared mutable game state |
-| `src/game/progression.ts` | Level and run bookkeeping |
-| `src/game/world.ts` | Viewport sizing, holes, spawning, board reset |
-| `src/game/update.ts` | Per-frame simulation and collision |
-| `src/game/input.ts` | Keyboard, touch, and mouse handling |
-| `src/game/audio.ts` | WebAudio synthesis and the mute toggle |
-| `src/game/images.ts` | Head cutout loading and trim |
-| `src/game/metrics.ts` | Derived sizes — head radius, ground line, hole width |
+| `src/game/` | Config, state, progression, world, simulation, input, audio |
 | `src/render/` | Canvas drawing, per-level themes and scenery, overlay portraits |
 | `src/ui/` | DOM refs, HUD, banner, screens, and the leaderboard |
-| `src/net/api.ts` | Calls to the leaderboard endpoints |
-| `netlify/functions/` | The leaderboard API — token issue, submission, standings |
-| `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |
-| `test/harness.mjs` | Boots the built bundle in jsdom for the UI tests |
-| `test/` | Rule, API, and UI tests, plus the headless boot check |
-| `public/assets/ryan-head-floating.png` | Head cutout (300×300, transparent background) |
-| `netlify.toml` | Netlify build and publish config |
-| `scripts/` | Regenerates the link-preview card and the favicons |
 
-### Why `shared/`
+**Why `rules/` sits apart from `src/`.** The server can only decide whether a score is real
+if it knows the level table, the fire rate, and the formula. `netlify/functions/` imports
+this one copy, so the game and the validator can't drift apart. A duplicated constant would
+eventually reject a legitimate top score mid-contest.
 
-A leaderboard means a server that decides whether a submitted score is real, and it can
-only do that if it knows the level table, the fire rate, and the scoring formula. Keeping
-one copy in `shared/` means the client and the validator can't drift apart — a duplicated
-constant would eventually reject a legitimate top score mid-contest.
+### Levels
 
-## How to play
+Five levels are hand-tuned in `rules/rules.ts`. Past those, the tail is generated from the
+last one and keeps tightening with no plateau, so a contest run always ends on its own and
+the board ranks skill rather than stamina.
 
-- **Desktop:** ← / → or A / D to move · hold Space to shoot · Enter starts and restarts
-- **Mobile:** touch and drag to move — balls fire automatically while you hold
-
-One input does everything on mobile; there's no separate fire button. Hazards block shots
-mid-air and cost a life on contact. Each hole sunk makes Ryan's head bigger, and the head
-resets to normal at the start of every level.
-
-## Levels
-
-Five levels are hand-tuned in `shared/rules.ts`; past those the tail is generated from the
-last one and keeps tightening on every axis with no plateau.
-
-| Level | Name | Holes | Backdrop | Horizon | Hazards |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Driving Range | 5 | Purple night | Mounds and distance flags | 💧 🌳 |
-| 2 | Front Nine | 6 | Sunrise | Rolling hills | 🌧️ 🌾 |
-| 3 | Water Hazard | 7 | Deep teal | A pond with ripples | 🌊 🦆 |
-| 4 | The Woods | 8 | Dark forest | A treeline of pines | 🍂 🌲 |
-| 5 | Championship | 9 | Royal and gold | Grandstands and pennants | 🏌️ 🚩 |
-| 6+ | Sudden Death | up to 12 | Midnight / fire | Starlit peaks / a lit volcano | ❄️ ⭐ / ☄️ 🌋 |
-
-The horizon is drawn procedurally in `src/render/scenery.ts` — still no image files.
-Layout comes from a seeded generator, so a level's skyline is the same every time you see
-it rather than crawling about between frames, and the whole thing is painted once into an
-offscreen canvas and blitted, so it costs one `drawImage` per frame no matter how many
-trees are in it.
-
-Level 1 is the birthday round and is unchanged from the original game. Each level starts
-from a clean board, its own difficulty baseline, and its own sky; a timed ramp then builds
-pressure within the level.
-
-Themes live in `src/render/theme.ts` and are client-only — the server never needs to know
-about them. Reskinning a hazard changes nothing about how it behaves: there are still only
-two hazard slots, and the slot drives spawn weighting and collision. Only the glyph and its
-spark colour change, so a level can look completely different while scoring identically.
-
-### Why the tail has no ceiling
-
-A contest run has to end on its own, or the leaderboard ranks stamina rather than skill. An
-earlier version capped every axis around level 15, after which difficulty was flat and a
-good player could in principle continue indefinitely. Now it keeps climbing:
-
-| Level | Hole speed | Hazard gap | Fall speed |
+| Level | Name | Holes | Hazards |
 | --- | --- | --- | --- |
-| 5 | 1.60× | 380–620 ms | 1.30× |
-| 11 | 2.27× | 262–428 ms | 1.64× |
-| 20 | 3.83× | 150–245 ms | 2.34× |
-| 30 | 6.87× | 90–150 ms | 3.47× |
+| 1 | Driving Range | 5 | 💧 🌳 |
+| 2 | Front Nine | 6 | 🌧️ 🌾 |
+| 3 | Water Hazard | 7 | 🌊 🦆 |
+| 4 | The Woods | 8 | 🍂 🌲 |
+| 5 | Championship | 9 | 🏌️ 🚩 |
+| 6+ | Sudden Death | up to 12 | ❄️ ⭐ / ☄️ 🌋 |
 
-The bounds in `SAFETY` are not difficulty caps — they sit far past any reachable level and
-exist so the simulation stays honest. A hazard falling further than the player is tall
-between two frames could cross them without registering a hit, which would make deep levels
-*easier*, not harder.
+Each level has its own sky and a procedurally drawn horizon (`src/render/scenery.ts`). It's
+seeded, so a skyline looks the same every time, and painted once offscreen. Reskinning a
+hazard only changes its glyph: there are still two hazard slots, and the slot drives
+spawning and collision.
 
-## Scoring
+### Scoring
 
-Contest Mode only. Every award is multiplied by the level number, so depth is worth far
-more than grinding the early levels.
+Contest Mode only. Every award is multiplied by the level number.
 
 | Award | Value | When |
 | --- | --- | --- |
@@ -130,165 +249,38 @@ more than grinding the early levels.
 | Flawless | 300 × level | Clearing it without losing a life |
 | Speed | 20 × level | Per whole second under the level's par |
 
-The level you die on still pays for the holes you sank — progress counts — but none of the
-bonuses. Full rules and the numbers live in `shared/scoring.ts`.
+### Sound
 
-## Running the API locally
+On by default. The audio context starts on the first tap of a mode button, so autoplay
+blocking never trips. Everything is synthesized with WebAudio, with no audio files. The win
+melody, "Happy Birthday to You", has been public domain since 2016. On iOS, the silent
+switch also mutes WebAudio.
 
-`npm run dev` serves the functions as well as the game. A Vite plugin mounts the
-same handlers Netlify will run on the same `/api/*` paths, compiled from source,
-so one command exercises the whole thing against a real Supabase project — no
-Netlify CLI and no deploy needed.
+### Swapping the photo
 
-Copy `.env.example` to `.env` and fill in the three values. `.env` is gitignored.
+In `src/game/config.ts`, `HEAD_IMAGE_SRC` points at `/assets/ryan/ryan-head-floating.png`,
+and `HEAD_TRIM` marks where the head sits inside the PNG's transparent margins. For a
+different cutout:
+1. Put it in `public/assets/ryan/` and point `HEAD_IMAGE_SRC` at it.
+2. Set `HEAD_TRIM = null`.
 
-With no `.env` the endpoints return a clean error and the game reports the
-leaderboard as offline, which is itself a state worth testing.
+Use a transparent background; a rectangular photo will show as a box.
 
-## Leaderboard backend
+### Tuning
 
-Contest runs are submitted to Netlify Functions, which are the only thing that
-talks to Supabase. The database has Row Level Security on with no policies
-granted, so the anon key opens nothing and never ships to the browser.
+Per-level difficulty lives in `rules/rules.ts`. Everything else is in `src/game/config.ts`:
+- `HEAD_GROW`: head growth per hole sunk
+- `HAZARD_FALL`: base hazard fall speed
+- `RAMP_EVERY_MS`, `RAMP_SPEED_STEP`: the in-level difficulty ramp
+- `FINALE_MS`, `FINALE_SLOW`: length and time-scale of the winning-shot slow motion
+- `INVULN_MS`: grace period after a hit
+- `HITBOX_SCALE`: lower is more forgiving
 
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /api/run-start` | Issues the token a run must present to be submitted |
-| `POST /api/submit-run` | Validates a finished run and stores it |
-| `GET /api/leaderboard` | Top standings, one best run per person |
+### Notes
 
-`supabase/schema.sql` creates the tables; run it once in the Supabase SQL editor.
-
-### What stops a fake score
-
-The client is assumed to be hostile. A submission carries per-level stats, and
-`submit-run` treats the score attached to it as a claim to be discarded:
-
-1. `validateRun()` recomputes the score from the stats and checks the stats
-   themselves — fire rate, holes per level, lives spent, totals that agree.
-2. The run token must exist, be unused, and be less than six hours old.
-3. Wall clock: a run claiming 90 seconds of play cannot be submitted 10 seconds
-   after its token was issued.
-4. Consuming the token is a conditional update, so two racing submissions cannot
-   both win — that is the replay check.
-5. Twenty submissions per player per hour, and sixty run starts per address —
-   `run-start` is the one endpoint that needs no credentials and writes a row.
-
-### Closing the contest
-
-Set `CONTEST_ENDS_AT` to an ISO timestamp and both `run-start` and `submit-run`
-refuse after it, so nobody can take the top spot once a winner is announced. The
-standings stay readable, and the leaderboard screen shows the date. Leave it
-unset and the contest runs indefinitely; an unparseable value is ignored rather
-than locking everyone out.
-
-### The link preview
-
-`public/og.png` is what Slack, Teams, and mail show when the link is pasted, and
-the favicons are cropped from the same photo — `scripts/make-icons.mjs` measures
-where the head actually sits rather than assuming, since the game's own crop is
-portrait and includes the shoulders, which at 32 pixels leaves the face a speck.
-
-Both are generated and committed, so a normal install and a
-Netlify build never need the rasteriser. The absolute URL the tags require is
-filled in at build time from Netlify's own `URL`, so there is no domain hardcoded
-anywhere.
-
-The stored score is always the server's recomputation. The client's claim is kept
-in `client_meta` so a suspicious run can be looked at rather than guessed about.
-
-### Environment variables
-
-Set these in Netlify under **Site configuration -> Environment variables**:
-
-| Variable | Where it comes from |
-| --- | --- |
-| `SUPABASE_URL` | Supabase -> Project Settings -> Data API |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase -> Project Settings -> API Keys. Server only |
-| `HASH_SALT` | Any long random string you generate once. `EMAIL_HASH_SALT` is still accepted |
-| `CONTEST_ENDS_AT` | Optional ISO timestamp. After it, runs cannot be started or posted; the standings stay readable |
-
-The service role key bypasses Row Level Security. It belongs only in Netlify's
-environment, never in the repo and never in client code.
-
-### Identity
-
-A name is all anyone is asked for. Alongside it the browser generates a random
-player id, keeps it in `localStorage`, and sends it with each run so a person's
-runs collapse to their best and they can be shown their own standing.
-
-It is not an identity claim and nothing is trusted to it: clearing site data
-makes you a new player, and playing on a second device makes you a second one.
-That is the accepted cost of not asking a whole company for an email address for
-a birthday game. Addresses are the only thing still hashed, for rate limiting.
-
-## Sound
-
-On by default. The audio context is created on the first tap of a mode button, so it never
-trips browser autoplay blocking. The 🔊 toggle sits in the top-right and stays reachable on
-every screen, including before the game starts.
-
-Everything is synthesized with WebAudio oscillators — there are no audio files. The win
-melody is "Happy Birthday to You", which entered the public domain in 2016.
-
-To ship it muted by default, change the fallback in `src/game/audio.ts` to `"1"`:
-
-```ts
-let muted = store.get("ryanbday.muted", "0") === "1";
-```
-
-Note: iOS honors the physical silent switch for WebAudio, so a phone on silent stays silent
-regardless.
-
-## Swapping the photo
-
-In `src/game/config.ts`:
-
-```ts
-export const HEAD_IMAGE_SRC = "assets/ryan-head-floating.png";
-export const HEAD_TRIM = { x: 67 / 300, y: 21 / 300, w: 189 / 300, h: 259 / 300 };
-```
-
-`HEAD_TRIM` marks where the head sits inside the PNG's transparent margins (measured from
-this specific file). For a different image: drop it in `public/assets/`, update
-`HEAD_IMAGE_SRC`, set `HEAD_TRIM = null`, and use a cutout with a transparent background —
-a rectangular photo will show as a box. With no image present the game falls back to a
-placeholder, so it always runs.
-
-`HEAD_PARTY_IMAGE_SRC` is optional. When empty, the win-screen party hat is drawn
-programmatically; point it at a party-hat photo to use that instead.
-
-## Deploy (Netlify)
-
-1. Push this folder to GitHub.
-2. Netlify → **Add new site → Import an existing project** → pick the repo.
-3. Build command `npm run build`, publish directory `dist` (already set in `netlify.toml`).
-
-The site root serves the game directly, so the shareable link is just the domain.
-
-## Tuning
-
-Per-level difficulty lives in `shared/rules.ts`. Everything else is in `src/game/config.ts`:
-
-| Constant | Purpose |
-| --- | --- |
-| `BIRTHDAY_LIVES` / `CONTEST_LIVES` | lives per run (3 / 5) — in `shared/rules.ts` |
-| `SHOT_COOLDOWN` | ms between shots while holding fire — in `shared/rules.ts` |
-| `HEAD_GROW` | head growth per hole sunk (0.06 = 6%) |
-| `HAZARD_FALL` | base hazard fall speed, scaled per level |
-| `SPAWN_FLOOR_RATIO` | how tight the in-level ramp may squeeze hazard spawns |
-| `RAMP_EVERY_MS`, `RAMP_SPEED_STEP` | in-level difficulty ramp |
-| `FINALE_MS` / `FINALE_SLOW` | length and time-scale of the winning-shot slow-motion |
-| `INVULN_MS` | grace period after a hit |
-| `HITBOX_SCALE` | lower = more forgiving collisions |
-
-## Notes
-
-- Round count, best time, and best contest score persist via `localStorage`, guarded so
-  private browsing and `file://` degrade quietly.
-- Collision uses an ellipse matched to the head image. Shot-vs-hole and shot-vs-hazard
-  checks are swept so fast shots can't skip through between frames.
-- Overlay screens shrink at three viewport-height breakpoints, since they can't scroll.
-- The smoke test seeds `Math.random`, so a headless run either always passes or always
-  fails — never intermittently.
-- The pre-build single-file version is preserved at the `v1-single-file` tag.
+- The page is hidden until its stylesheet loads, so it never flashes unstyled.
+- Collision uses an ellipse matched to the head image. Shot checks are swept, so fast shots
+  can't skip through between frames.
+- The smoke test seeds `Math.random`, so a headless run always passes or always fails,
+  never intermittently.
+- The original single-file version is preserved at the `v1-single-file` tag.
