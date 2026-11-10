@@ -110,6 +110,7 @@ export default defineConfig({
       input: {
         lobby: page("index.html"),
         "birthday-2026": page("games/birthday-2026/index.html"),
+        "christmas-2026": page("games/christmas-2026/index.html"),
       },
     },
   },
