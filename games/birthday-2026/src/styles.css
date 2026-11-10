@@ -37,6 +37,8 @@
   }
 
   #stage {
+    /* index.html hides the stage until this stylesheet has loaded. */
+    visibility: visible;
     position: fixed;
     inset: 0;
     background:

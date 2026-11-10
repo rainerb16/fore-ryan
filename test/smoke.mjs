@@ -22,6 +22,9 @@ const inlineStyle = g.doc.querySelector("head style");
 if (!inlineStyle || !/background:\s*#0b0720/.test(inlineStyle.textContent)) {
   fail("the head lost its inline background — the page will flash white on load");
 }
+if (!/#stage\s*\{\s*visibility:\s*hidden/.test(inlineStyle.textContent)) {
+  fail("the head must hide #stage until the stylesheet loads, or the raw page flashes");
+}
 if (head.indexOf("<style") > head.indexOf("stylesheet")) {
   fail("the inline style must come before the stylesheet link");
 }
