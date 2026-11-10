@@ -129,7 +129,22 @@ the browser.
 command runs the whole thing against a real Supabase project. Copy `.env.example` to `.env`
 and fill it in; `.env` is gitignored. Without it, the games use the local fallback.
 
-`supabase/schema.sql` creates the tables. Run it once in the Supabase SQL editor.
+`supabase/schema.sql` creates or upgrades the tables. It's one transaction and safe to re-run;
+paste the whole file into the Supabase SQL editor. Each game's runs are tagged with its id,
+and the `leaderboard` view keeps each player's best run per game, in that game's sort order.
+`supabase/inspect.sql` is a read-only query that reports the live setup (view definition,
+RLS, policies, grants, functions, constraints); run it before changing the schema.
+
+To hide a run without deleting it, set `flagged = true` on it.
+
+### Keeping the database awake
+
+Supabase pauses a free project after a week without activity.
+`.github/workflows/keep-alive.yml` reads the top birthday score through the live site on
+Mondays and Thursdays, which counts as activity. If the read fails, the workflow fails and
+GitHub emails you. It needs one repository variable, `SITE_URL` (the site's address), set
+under **Settings → Secrets and variables → Actions → Variables**. Scheduled workflows only
+run from the default branch, so it starts once this is merged to `main`.
 
 ### What stops a fake score
 
