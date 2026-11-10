@@ -3,7 +3,7 @@
 // glyphs the two hazard slots draw as. Reskinning changes no behaviour: the slot
 // still drives spawn weighting and collision, and the server never sees it.
 
-import { AUTHORED_LEVELS, type HazardType } from "../../shared/rules";
+import { AUTHORED_LEVELS, type HazardType } from "../../rules/rules";
 import { decorEls, stage } from "../ui/dom";
 import { invalidateScenery, type SceneryKind } from "./scenery";
 

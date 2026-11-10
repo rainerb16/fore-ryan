@@ -1,4 +1,4 @@
-import { SCORING } from "../../shared/scoring";
+import { SCORING } from "../../rules/scoring";
 import { MODE } from "../game/config";
 import { game } from "../game/state";
 import { levelEl, livesEl, pointsEl, scoreEl } from "./dom";

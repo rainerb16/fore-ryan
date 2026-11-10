@@ -1,5 +1,5 @@
 import { muteBtn } from "../ui/dom";
-import { store } from "./storage";
+import { store } from "../../../../shared/storage";
 
 declare global {
   interface Window {

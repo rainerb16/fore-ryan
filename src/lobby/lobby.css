@@ -1,0 +1,208 @@
+:root {
+  --night: #07040f;
+  --text: #f2ecff;
+  --muted: #b9a9d6;
+  --neon: #ff3fd0;
+  --cyan: #36e2ff;
+  --gold: #ffd166;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: var(--night);
+  color: var(--text);
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+}
+
+#arcade {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+}
+
+/* --- the list: visually hidden beside the 3D room, the whole lobby without it */
+
+body.webgl #cabinets {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Nothing until boot decides which lobby this device gets. */
+body:not(.webgl):not(.no-webgl) #cabinets { visibility: hidden; }
+
+body:not(.webgl) #arcade,
+body:not(.webgl) #controls { display: none; }
+
+body.no-webgl { overflow: auto; }
+
+#cabinets h1 {
+  margin: 32px 16px 20px;
+  text-align: center;
+  font-size: clamp(32px, 8vw, 56px);
+  color: #fff6fd;
+  text-shadow: 0 0 12px var(--neon), 0 0 32px var(--neon);
+}
+
+#cabinetList {
+  list-style: none;
+  margin: 0 auto 40px;
+  padding: 0 16px;
+  max-width: 520px;
+  display: grid;
+  gap: 16px;
+}
+
+.cabinet {
+  border: 2px solid var(--cyan);
+  border-radius: 14px;
+  padding: 16px;
+  background: #120a26;
+  box-shadow: 0 0 18px rgba(54, 226, 255, 0.25);
+}
+
+.cabinet .play {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  color: var(--gold);
+  font-size: 22px;
+  text-decoration: none;
+}
+.cabinet .play::after { content: "Play ▶"; font-size: 16px; color: var(--text); }
+.cabinet .play:focus-visible { outline: 3px solid var(--neon); outline-offset: 4px; }
+.cabinet .occasion { flex: 1; font-size: 14px; color: var(--muted); }
+
+.top3 {
+  margin: 12px 0 0;
+  padding-left: 24px;
+  font-family: "Courier New", ui-monospace, monospace;
+}
+.top3 li { display: flex; justify-content: space-between; padding: 2px 0; }
+.top3 li.note { display: list-item; list-style: none; margin-left: -24px; color: var(--muted); }
+
+/* --- on-screen controls over the 3D room ----------------------------------- */
+
+#controls {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(7, 4, 15, 0.85), transparent);
+}
+
+#controls .now { margin: 0; text-align: center; }
+#focusTitle { display: block; font-size: 24px; color: var(--gold); text-shadow: 0 0 10px rgba(255, 209, 102, 0.5); }
+#focusOccasion { font-size: 14px; color: var(--muted); }
+
+#controls .buttons { display: flex; gap: 10px; pointer-events: auto; }
+#controls button {
+  min-width: 52px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 2px solid var(--cyan);
+  border-radius: 10px;
+  background: rgba(18, 10, 38, 0.8);
+  color: var(--text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+#controls #playBtn { border-color: var(--neon); color: #fff; box-shadow: 0 0 14px rgba(255, 63, 208, 0.5); }
+#controls .hint { margin: 0; font-size: 12px; color: var(--muted); }
+
+@media (hover: none) {
+  #controls .hint { display: none; }
+}
+
+/* --- zoom-into-the-screen transition --------------------------------------- */
+
+#fade {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s ease 0.45s;
+}
+#fade.on { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  #fade { transition: none; }
+}
+
+/* --- maker's credit: under the list, or pinned in a corner over the room ---- */
+
+/* A neon signature: arcade capitals over a pink script, buzzing now and then. */
+#credit {
+  margin: 0 0 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+#credit small {
+  font-family: "Courier New", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  text-shadow: 0 0 6px rgba(54, 226, 255, 0.8);
+}
+#credit span {
+  padding: 0 6px; /* room for the script's overhang */
+  margin-top: -2px;
+  font-family: "Mr Dafoe", "Brush Script MT", cursive;
+  font-size: 40px;
+  color: #ffd6f5;
+  transform: rotate(-6deg);
+  text-shadow:
+    0 0 4px var(--neon),
+    0 0 12px var(--neon),
+    0 0 28px rgba(255, 63, 208, 0.7);
+  animation: buzz 7s infinite;
+}
+
+/* Mostly steady; a quick stutter every few seconds, like an ageing tube. */
+@keyframes buzz {
+  0%, 88%, 91%, 94%, 100% { opacity: 1; }
+  89%, 92% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #credit span { animation: none; }
+}
+
+body:not(.webgl):not(.no-webgl) #credit { visibility: hidden; }
+
+body.webgl #credit {
+  position: fixed;
+  /* Below the neon tube that runs along the top of the wall. */
+  top: calc(58px + env(safe-area-inset-top));
+  right: 32px;
+  margin: 0;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  body.webgl #credit { top: calc(54px + env(safe-area-inset-top)); right: 22px; }
+  #credit small { font-size: 10px; }
+  #credit span { font-size: 30px; }
+}

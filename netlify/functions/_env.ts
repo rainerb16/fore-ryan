@@ -36,5 +36,4 @@ export function contestIsClosed(): boolean {
   return ends !== null && Date.now() > ends.getTime();
 }
 
-export const MAX_NAME_LENGTH = 40;
 export const LEADERBOARD_LIMIT = 25;

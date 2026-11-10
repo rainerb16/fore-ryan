@@ -166,7 +166,8 @@ const goodSubmission = (over = {}) => ({
   token: tokenIssuedAgo(120000),
   displayName: "Ryan B",
   playerId: "11111111-aaaa-4bbb-8ccc-222222222222",
-  summary: summaryOf([clearedL1, clearedL2]),
+  gameId: "birthday-2026",
+  details: summaryOf([clearedL1, clearedL2]),
   ...over,
 });
 
@@ -234,7 +235,7 @@ test("an honest run is accepted and stored with the server's own score", async (
   assert.equal(res.status, 200, JSON.stringify(payload));
 
   assert.equal(runs.length, 1);
-  assert.equal(runs[0].points, runTotal(body.summary.levels));
+  assert.equal(runs[0].points, runTotal(body.details.levels));
   assert.equal(runs[0].display_name, "Ryan B");
   assert.equal(payload.points, runs[0].points);
 });
@@ -249,8 +250,8 @@ test("nothing personal is stored — a run carries a name and an opaque id", asy
 
 test("an inflated score claim is overwritten, not trusted", async () => {
   const body = goodSubmission();
-  const honest = runTotal(body.summary.levels);
-  body.summary.points = 99999999;
+  const honest = runTotal(body.details.levels);
+  body.details.points = 99999999;
 
   const res = await post(body);
   assert.equal(res.status, 200);
@@ -261,7 +262,7 @@ test("an inflated score claim is overwritten, not trusted", async () => {
 // --- rejections -------------------------------------------------------------
 
 test("rejects a run whose stats do not add up", async () => {
-  const res = await post(goodSubmission({ summary: summaryOf([{ ...clearedL1, shots: 1 }]) }));
+  const res = await post(goodSubmission({ details: summaryOf([{ ...clearedL1, shots: 1 }]) }));
   assert.equal(res.status, 422);
   assert.equal(runs.length, 0);
 });
@@ -299,7 +300,6 @@ test("rejects a token older than its time to live", async () => {
 
 test("rejects a missing or malformed name", async () => {
   assert.equal((await post(goodSubmission({ displayName: "   " }))).status, 400);
-  assert.equal((await post(goodSubmission({ displayName: "x".repeat(41) }))).status, 400);
   assert.equal((await post(goodSubmission({ displayName: 42 }))).status, 400);
 });
 
@@ -413,4 +413,17 @@ test("the leaderboard rejects anything but GET", async () => {
     new Request("https://example.com/api/leaderboard", { method: "POST" }),
   );
   assert.equal(res.status, 405);
+});
+
+test("caps a long name at 20 characters instead of refusing it", async () => {
+  const res = await post(goodSubmission({ displayName: `  ${"x".repeat(30)}  ` }));
+  assert.equal(res.status, 200);
+  assert.equal(runs.at(-1).display_name, "x".repeat(20));
+});
+
+test("still accepts the pre-arcade payload, with the stats under summary", async () => {
+  const { details, gameId, ...legacy } = goodSubmission();
+  assert.equal(gameId, "birthday-2026");
+  const res = await post({ ...legacy, summary: details });
+  assert.equal(res.status, 200);
 });

@@ -37,6 +37,8 @@
   }
 
   #stage {
+    /* index.html hides the stage until this stylesheet has loaded. */
+    visibility: visible;
     position: fixed;
     inset: 0;
     background:
@@ -193,7 +195,8 @@
     backdrop-filter: blur(7px);
     -webkit-backdrop-filter: blur(7px);
   }
-  .overlay > :first-child { margin-top: auto; }
+  .overlay > :first-child:not(.back),
+  .overlay > .back + * { margin-top: auto; }
   .overlay > :last-child { margin-bottom: auto; }
   .overlay[hidden] { display: none; }
 
@@ -512,7 +515,7 @@
     color: var(--gold);
   }
 
-  button.link {
+  button.link, a.link {
     cursor: pointer;
     border: 0;
     background: none;
@@ -524,4 +527,11 @@
     text-underline-offset: 3px;
     padding: 4px 8px;
   }
-  button.link:hover { color: var(--text); }
+  button.link:hover, a.link:hover { color: var(--text); }
+
+  /* Back to the lobby, out of the way of the overlay's centred column. */
+  .overlay a.back {
+    position: absolute;
+    top: calc(14px + env(safe-area-inset-top));
+    left: 16px;
+  }

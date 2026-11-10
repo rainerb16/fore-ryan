@@ -5,14 +5,17 @@
 
 import { consumeToken, findToken, insertRun, recentRunCount } from "./_db";
 import { contestIsClosed, RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
-import { cleanName, clientIp, fail, hashIp, isUuid, json } from "./_http";
-import { validateRun } from "../../shared/scoring";
-import type { RunSummary } from "../../shared/types";
+import { clientIp, fail, hashIp, isUuid, json } from "./_http";
+import { cleanName, MAX_NAME_LENGTH } from "../../shared/names";
+import { validateRun } from "../../games/birthday-2026/rules/scoring";
+import type { RunSummary } from "../../games/birthday-2026/rules/types";
 
 interface Payload {
   token?: unknown;
   displayName?: unknown;
   playerId?: unknown;
+  details?: unknown;
+  /** What clients sent before the arcade adapter; still accepted. */
   summary?: unknown;
 }
 
@@ -31,12 +34,13 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const displayName = cleanName(body.displayName);
-  if (!displayName) return fail(400, "Enter a name of 1 to 40 characters");
+  if (!displayName) return fail(400, `Enter a name of 1 to ${MAX_NAME_LENGTH} characters`);
   if (!isUuid(body.playerId)) return fail(400, "Missing player id");
   if (!isUuid(body.token)) return fail(400, "Missing run token");
-  if (!body.summary || typeof body.summary !== "object") return fail(400, "Missing run summary");
+  const details = body.details ?? body.summary;
+  if (!details || typeof details !== "object") return fail(400, "Missing run summary");
 
-  const summary = body.summary as RunSummary;
+  const summary = details as RunSummary;
   const playerId = body.playerId;
 
   // 1. The run has to reproduce its own score from its own stats.

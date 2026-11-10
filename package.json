@@ -1,7 +1,7 @@
 {
-  "name": "fore-ryan",
+  "name": "ryan-arcade",
   "private": true,
-  "version": "2.0.0",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,13 +10,18 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p netlify/tsconfig.json",
     "test": "npm run build && node --test test/*.test.mjs",
     "smoke": "npm run build && node test/smoke.mjs",
+    "thumbs": "node scripts/make-thumbnails.mjs",
     "check": "npm run typecheck && npm run build && node --test test/*.test.mjs && node test/smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",
+    "@types/three": "0.187.0",
     "esbuild": "^0.25.0",
     "jsdom": "^26.0.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.5"
+  },
+  "dependencies": {
+    "three": "0.187.0"
   }
 }

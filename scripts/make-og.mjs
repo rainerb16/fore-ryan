@@ -19,7 +19,7 @@ const H = 630;
 // game crops with, and they match the image's real opaque bounds.
 const TRIM = { x: 67 / 300, y: 21 / 300, w: 189 / 300, h: 259 / 300 };
 
-const head = readFileSync("public/assets/ryan-head-floating.png").toString("base64");
+const head = readFileSync("public/assets/ryan/ryan-head-floating.png").toString("base64");
 
 // Where the visible head lands on the card. It is deliberately run off the
 // bottom edge: the cutout ends in a straight line across the shoulders, which
