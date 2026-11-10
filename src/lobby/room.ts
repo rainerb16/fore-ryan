@@ -16,12 +16,12 @@ import {
   SpotLight,
   type Texture,
 } from "three";
-import { carpet, lightPool, neon } from "./textures";
+import { carpet, lightPool, neonSign, wallPanels } from "./textures";
 
 export const WALL_Z = -1.2;
 const NIGHT = "#07040f";
 
-const SIGN_WIDTH = 3.6;
+const SIGN_WIDTH = 3.2;
 
 export interface Room {
   spot: SpotLight;
@@ -31,23 +31,27 @@ export interface Room {
   update(time: number): void;
 }
 
-export function buildRoom(scene: Scene, spotXs: number[]): Room {
+export function buildRoom(scene: Scene, spotXs: number[], lowPower: boolean): Room {
   scene.background = new Color(NIGHT);
   scene.fog = new Fog(NIGHT, 5, 14);
 
-  scene.add(new HemisphereLight("#7a68c0", "#150b28", 1.1));
+  scene.add(new HemisphereLight("#7a68c0", "#150b28", 0.7));
 
   const carpetTexture = carpet();
   carpetTexture.repeat.set(12, 5);
   const floor = new Mesh(
     new PlaneGeometry(36, 15),
-    new MeshStandardMaterial({ map: carpetTexture, roughness: 1 }),
+    new MeshStandardMaterial({ map: carpetTexture, roughness: 0.95 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.z = WALL_Z + 7.5;
+  floor.receiveShadow = true;
   scene.add(floor);
 
-  const wall = new Mesh(new PlaneGeometry(36, 6), new MeshStandardMaterial({ color: "#1c1033", roughness: 0.9 }));
+  const wallTexture = wallPanels();
+  wallTexture.repeat.set(18, 3);
+  const wall = new Mesh(new PlaneGeometry(36, 6), new MeshStandardMaterial({ map: wallTexture, roughness: 0.85 }));
+  wall.receiveShadow = true;
   wall.position.set(0, 3, WALL_Z);
   scene.add(wall);
 
@@ -62,11 +66,15 @@ export function buildRoom(scene: Scene, spotXs: number[]): Room {
   };
 
   // Just above the cabinet tops (1.92 m), so it stays in frame.
-  const sign = glow(neon("RYAN ARCADE", "#ff3fd0"), SIGN_WIDTH, 0.9, 0, 2.5, WALL_Z + 0.02);
+  const sign = glow(neonSign(), SIGN_WIDTH, SIGN_WIDTH * (384 / 1024), 0, 2.55, WALL_Z + 0.02);
+  // Well under full brightness, so bloom gives it a halo rather than a white-out.
+  sign.material.color.setScalar(0.55);
 
   // Neon tube trims running along the wall.
   for (const [y, colour] of [[3.1, "#36e2ff"], [2.0, "#8a5cff"]] as const) {
-    const tube = new Mesh(new CylinderGeometry(0.018, 0.018, 36, 6), new MeshBasicMaterial({ color: colour }));
+    const material = new MeshBasicMaterial({ color: colour });
+    material.color.multiplyScalar(0.45); // a glow, not a light source
+    const tube = new Mesh(new CylinderGeometry(0.018, 0.018, 36, 6), material);
     tube.rotation.z = Math.PI / 2;
     tube.position.set(0, y, WALL_Z + 0.03);
     scene.add(tube);
@@ -84,6 +92,11 @@ export function buildRoom(scene: Scene, spotXs: number[]): Room {
 
   const spot = new SpotLight("#ffe9d0", 28, 7, 0.45, 0.6, 1.6);
   spot.position.set(0, 3.4, 0.6);
+  // The one real shadow in the room, under the cabinet in focus.
+  spot.castShadow = true;
+  spot.shadow.mapSize.setScalar(lowPower ? 512 : 1024);
+  spot.shadow.bias = -0.0004;
+  spot.shadow.radius = 4;
   scene.add(spot, spot.target);
 
   return {

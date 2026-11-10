@@ -2,7 +2,7 @@
 // background (the logo must never sit on red or yellow), clear space around the
 // logo with no effects on it, Oswald headline in the brand gold.
 
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry } from "three";
+import { BoxGeometry, Group, Mesh, MeshStandardMaterial, PlaneGeometry } from "three";
 import { paint } from "./textures";
 
 const BRAND = {
@@ -76,8 +76,12 @@ export function buildPoster(logo: HTMLImageElement | null, guy: HTMLImageElement
 
   const group = new Group();
   const frame = new Mesh(new BoxGeometry(1.08, 1.6, 0.04), new MeshStandardMaterial({ color: "#111", roughness: 0.5 }));
-  // Unlit, but a touch below full white so it reads as paper rather than a screen.
-  const art = new Mesh(new PlaneGeometry(1.0, 1.5), new MeshBasicMaterial({ map: texture, color: "#e6e6e6" }));
+  // Printed paper: lit by the room, plus a soft glow as if under a picture light,
+  // kept dim enough that bloom leaves it alone.
+  const art = new Mesh(
+    new PlaneGeometry(1.0, 1.5),
+    new MeshStandardMaterial({ map: texture, emissiveMap: texture, emissive: "#ffffff", emissiveIntensity: 0.4, roughness: 0.6 }),
+  );
   art.position.z = 0.021;
   group.add(frame, art);
   return group;

@@ -9,11 +9,13 @@ import { paint, type Palette } from "./textures";
 
 const W = 320;
 const H = 240;
+/** Drawn in a 320x240 space, rendered at twice that so the thumbnail stays sharp. */
+const RES = 2;
 const PIXEL_FONT = `"Courier New", ui-monospace, monospace`;
 
 /** Seconds each page of the cycle stays up. */
 const PAGES = [
-  { page: "title", secs: 4 },
+  { page: "title", secs: 5 },
   { page: "scores", secs: 4 },
   { page: "coin", secs: 3 },
 ] as const;
@@ -33,6 +35,7 @@ export class AttractScreen {
   private readonly ctx: CanvasRenderingContext2D | null;
   private scores: Scores = { state: "loading" };
   private shown = "";
+  private thumbnail: HTMLImageElement | null = null;
 
   constructor(
     private readonly game: GameEntry,
@@ -40,8 +43,13 @@ export class AttractScreen {
     /** Staggers cabinets so they do not all flip pages in unison. */
     private readonly offset: number,
   ) {
-    this.texture = paint(W, H, () => {});
+    this.texture = paint(W * RES, H * RES, () => {});
     this.ctx = (this.texture.image as HTMLCanvasElement).getContext("2d");
+  }
+
+  setThumbnail(image: HTMLImageElement): void {
+    this.thumbnail = image;
+    this.shown = "";
   }
 
   setScores(scores: Scores): void {
@@ -70,6 +78,7 @@ export class AttractScreen {
   private draw(page: Page, blink: boolean): void {
     const ctx = this.ctx;
     if (!ctx) return;
+    ctx.setTransform(RES, 0, 0, RES, 0, 0);
     ctx.fillStyle = "#05030d";
     ctx.fillRect(0, 0, W, H);
     ctx.textAlign = "center";
@@ -92,9 +101,29 @@ export class AttractScreen {
   }
 
   private title(ctx: CanvasRenderingContext2D, blink: boolean): void {
-    this.text(ctx, this.game.title.toUpperCase(), 92, 34, this.palette.secondary);
-    this.text(ctx, `${this.game.occasion.toUpperCase()} ${this.game.year}`, 132, 18, this.palette.primary);
-    if (blink) this.text(ctx, "PRESS START", 196, 18, "#ffffff");
+    const shot = this.thumbnail;
+    if (!shot) {
+      this.text(ctx, this.game.title.toUpperCase(), 92, 34, this.palette.secondary);
+      this.text(ctx, `${this.game.occasion.toUpperCase()} ${this.game.year}`, 132, 18, this.palette.primary);
+      if (blink) this.text(ctx, "PRESS START", 196, 18, "#ffffff");
+      return;
+    }
+    // Gameplay, cropped to fill the tube, with the title over it like a demo loop.
+    const scale = Math.max(W / shot.naturalWidth, H / shot.naturalHeight);
+    const w = shot.naturalWidth * scale;
+    const h = shot.naturalHeight * scale;
+    ctx.drawImage(shot, (W - w) / 2, (H - h) / 2, w, h);
+    const band = ctx.createLinearGradient(0, 0, 0, 64);
+    band.addColorStop(0, "rgba(5,3,13,0.85)");
+    band.addColorStop(1, "rgba(5,3,13,0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, 0, W, 64);
+    this.text(ctx, this.game.title.toUpperCase(), 26, 24, this.palette.secondary);
+    if (blink) {
+      ctx.fillStyle = "rgba(5,3,13,0.6)";
+      ctx.fillRect(W / 2 - 80, 198, 160, 26);
+      this.text(ctx, "PRESS START", 211, 16, "#ffffff");
+    }
   }
 
   private highScores(ctx: CanvasRenderingContext2D): void {

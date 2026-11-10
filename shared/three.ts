@@ -1,13 +1,19 @@
 // Three.js plumbing every 3D page needs, kept to what two pages actually share.
 
-import { PerspectiveCamera, WebGLRenderer } from "three";
+import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, WebGLRenderer } from "three";
 
 /** Retina phones would otherwise render 3–4x the pixels for little visible gain. */
 export const MAX_PIXEL_RATIO = 1.5;
 
+/** Phones and small tablets get cheaper shadows and effects. */
+export const isLowPower = (): boolean =>
+  (window.matchMedia?.("(pointer: coarse)").matches ?? false) ||
+  Math.min(window.screen?.width ?? 1024, window.screen?.height ?? 1024) < 700;
+
 /**
- * A renderer filling its canvas, with a camera kept in step on resize.
- * `onResize` runs after each resize, e.g. to refit the camera for a phone.
+ * A renderer filling its canvas, with filmic tone mapping and soft shadows, and
+ * a camera kept in step on resize. `onResize` runs after each resize, e.g. to
+ * refit the camera or an effects composer.
  */
 export function createView(
   canvas: HTMLCanvasElement,
@@ -16,6 +22,9 @@ export function createView(
 ): WebGLRenderer {
   const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
+  renderer.toneMapping = ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFShadowMap;
 
   const fit = (): void => {
     const width = canvas.clientWidth || window.innerWidth;
@@ -25,7 +34,8 @@ export function createView(
     camera.updateProjectionMatrix();
     onResize?.(width, height);
   };
-  fit();
+  // After the caller has its renderer back, so onResize can use what it builds.
+  queueMicrotask(fit);
   window.addEventListener("resize", fit);
   return renderer;
 }

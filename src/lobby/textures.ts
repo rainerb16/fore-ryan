@@ -82,21 +82,37 @@ export function carpet(): CanvasTexture {
   return texture;
 }
 
-/** Glowing tube lettering on a transparent background. */
-export function neon(text: string, colour: string): CanvasTexture {
-  return paint(1024, 256, (ctx) => {
-    ctx.font = `bold 150px ${ARCADE_FONT}`;
+/** 80s sign faces: a brush script over outlined tube capitals. Loaded in index.html. */
+export const SCRIPT_FONT = `"Mr Dafoe", "Brush Script MT", cursive`;
+export const TUBE_FONT = `"Monoton", ${ARCADE_FONT}`;
+
+/** One line of neon: a coloured halo, the tube, and a pale (not white) core. */
+function tube(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, colour: string, core: string): void {
+  ctx.shadowColor = colour;
+  ctx.fillStyle = colour;
+  for (const blur of [28, 10]) {
+    ctx.shadowBlur = blur;
+    ctx.fillText(text, x, y);
+  }
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = core;
+  ctx.lineWidth = 2;
+  ctx.strokeText(text, x, y);
+}
+
+/** The synthwave wall sign: "Ryan" in pink script slung across cyan "ARCADE". */
+export function neonSign(): CanvasTexture {
+  return paint(1024, 384, (ctx) => {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.shadowColor = colour;
-    for (const blur of [60, 30, 12]) {
-      ctx.shadowBlur = blur;
-      ctx.fillStyle = colour;
-      ctx.fillText(text, 512, 132);
-    }
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#fff6fd"; // the hot core of the tube
-    ctx.fillText(text, 512, 132);
+    ctx.font = `120px ${TUBE_FONT}`;
+    tube(ctx, "ARCADE", 512, 262, "#36e2ff", "#c9f6ff");
+    ctx.save();
+    ctx.translate(430, 128);
+    ctx.rotate(-0.12);
+    ctx.font = `190px ${SCRIPT_FONT}`;
+    tube(ctx, "Ryan", 0, 0, "#ff3fd0", "#ffc4ef");
+    ctx.restore();
   });
 }
 
@@ -144,7 +160,7 @@ export function sideArt(palette: Palette, head: HTMLImageElement | null): Canvas
   return texture;
 }
 
-export function drawHead(texture: CanvasTexture, head: HTMLImageElement): void {
+function drawHead(texture: CanvasTexture, head: HTMLImageElement): void {
   const ctx = (texture.image as HTMLCanvasElement).getContext("2d");
   if (!ctx) return;
   ctx.drawImage(head, 8, 40, 240, 240);
@@ -161,4 +177,35 @@ export function lightPool(): CanvasTexture {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 256, 256);
   });
+}
+
+/** A soft dark footprint that sits a cabinet on the carpet. */
+export function contactShadow(): CanvasTexture {
+  return paint(128, 128, (ctx) => {
+    const g = ctx.createRadialGradient(64, 64, 10, 64, 64, 64);
+    g.addColorStop(0, "rgba(0,0,0,0.75)");
+    g.addColorStop(0.6, "rgba(0,0,0,0.35)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  });
+}
+
+/** Dark painted wall panels with seams and a little grime. */
+export function wallPanels(): CanvasTexture {
+  const texture = paint(512, 512, (ctx) => {
+    const rand = seeded(42);
+    ctx.fillStyle = "#1b1030";
+    ctx.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 2600; i++) {
+      ctx.fillStyle = `rgba(${rand() < 0.5 ? "0,0,0" : "90,70,140"},${rand() * 0.07})`;
+      ctx.fillRect(rand() * 512, rand() * 512, 2 + rand() * 6, 2 + rand() * 6);
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    for (const x of [0, 256]) ctx.fillRect(x, 0, 3, 512); // panel seams
+    ctx.fillStyle = "rgba(255,255,255,0.04)";
+    for (const x of [3, 259]) ctx.fillRect(x, 0, 2, 512);
+  });
+  texture.wrapS = texture.wrapT = RepeatWrapping;
+  return texture;
 }

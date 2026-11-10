@@ -4,8 +4,9 @@
 
 import { MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type Object3D } from "three";
 import type { GameEntry } from "../../shared/games";
-import { createView, prefersReducedMotion, runLoop } from "../../shared/three";
+import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
+import { applyLook } from "./look";
 import { buildPoster } from "./poster";
 import { buildRoom, WALL_Z } from "./room";
 import type { Scores } from "./screen";
@@ -58,7 +59,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     return cabinet;
   });
   const playable = cabinets.map((c, i) => (c.game ? i : -1)).filter((i) => i >= 0);
-  const room = buildRoom(scene, specs.map((_, i) => xOf(i)));
+  const lowPower = isLowPower();
+  const room = buildRoom(scene, specs.map((_, i) => xOf(i)), lowPower);
 
   // On the wall past the end of the row, where the cabinets don't hide it.
   const poster = buildPoster(images.logo, images.guy);
@@ -73,7 +75,18 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     distance = Math.max(3, (CABINET_WIDTH * 0.95) / (halfTan * (w / h)));
     const wallDistance = distance + (ROW_Z - WALL_Z);
     room.fitSign(2 * wallDistance * halfTan * (w / h));
+    look.resize(w, h);
   });
+  const look = applyLook(renderer, scene, camera, lowPower);
+
+  // Each game's gameplay thumbnail, made by scripts/make-thumbnails.mjs.
+  for (const cabinet of cabinets) {
+    if (!cabinet.game || !cabinet.screen) continue;
+    const { screen } = cabinet;
+    const img = new Image();
+    img.onload = () => screen.setThumbnail(img);
+    img.src = `/assets/thumbs/${cabinet.game.id}.jpg`;
+  }
 
   let focus = 0; // index into playable
   let railX = xOf(playable[0]);
@@ -181,7 +194,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       room.spot.position.x = railX;
       room.spot.target.position.set(railX, 0.8, ROW_Z);
     }
-    renderer.render(scene, camera);
+    look.render();
   });
 
   setFocus(0);

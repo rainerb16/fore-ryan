@@ -21,8 +21,9 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
 }
 
 /** Canvas text only uses a web font once it has loaded. Don't wait forever. */
-function brandFonts(): Promise<unknown> {
-  const load = Promise.all(["700 92px Oswald", "600 26px Poppins", "700 22px Poppins"].map((f) => document.fonts.load(f)));
+function webFonts(): Promise<unknown> {
+  const faces = ["700 92px Oswald", "600 26px Poppins", "700 22px Poppins", "120px Monoton", "190px \"Mr Dafoe\""];
+  const load = Promise.all(faces.map((f) => document.fonts.load(f)));
   return Promise.race([load, new Promise((r) => setTimeout(r, 1500))]).catch(() => undefined);
 }
 
@@ -33,7 +34,7 @@ async function start3d(): Promise<ShowScores> {
     loadImage("/assets/ryan/ryan-head-floating.png"),
     loadImage("/assets/af/af-logo.png"),
     loadImage("/assets/af/af-guy-thumbs-up.png"),
-    brandFonts(),
+    webFonts(),
   ]);
 
   const title = $("focusTitle");
