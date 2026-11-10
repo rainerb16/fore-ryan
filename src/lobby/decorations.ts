@@ -177,12 +177,12 @@ function birthday(cabinet: Group): Animate {
   const anchor = new Vector3(HALF - 0.06, TOP, 0.05);
   const string = new MeshStandardMaterial({ color: "#b8b0cc", roughness: 0.6 });
   const balloons = [
-    { color: "#ff4f8b", at: new Vector3(0.44, 2.3, 0.0) },
-    { color: "#ffc93b", at: new Vector3(0.6, 2.42, -0.08) },
+    { color: "#d23a73", at: new Vector3(0.44, 2.3, 0.0) },
+    { color: "#d8a52e", at: new Vector3(0.6, 2.42, -0.08) },
     { color: "#2a9fd0", at: new Vector3(0.3, 2.2, 0.08) },
   ].map(({ color, at }, i) => {
     const g = new Group();
-    const shell = mesh(new SphereGeometry(0.11, 24, 18), gloss(color, { roughness: 0.4 }), 0, 0, 0);
+    const shell = mesh(new SphereGeometry(0.11, 24, 18), gloss(color, { roughness: 0.45 }), 0, 0, 0);
     shell.scale.set(1, 1.18, 1);
     g.add(shell, mesh(new ConeGeometry(0.018, 0.03, 10), gloss(color), 0, -0.14, 0));
     g.position.copy(at);
@@ -195,7 +195,8 @@ function birthday(cabinet: Group): Animate {
 
   // Pennant bunting sagging across the top of the marquee.
   const pennant = new ShapeGeometry(new Shape().moveTo(-0.035, 0).lineTo(0.035, 0).lineTo(0, -0.055).closePath());
-  const colours = ["#ff4f8b", "#ffc93b", "#36c9ff", "#8a5cff", "#4dff9a"];
+  // Deep shades: these sit right under the spotlight, where pastels flare.
+  const colours = ["#c2306a", "#c9962a", "#2a8fb8", "#6a44c4", "#2fae6a"];
   // Along the top edge with a shallow sag, so the flags frame the title rather than cover it.
   const line = sag(new Vector3(-HALF - 0.02, TOP + 0.005, FRONT + 0.012), new Vector3(HALF + 0.02, TOP + 0.005, FRONT + 0.012), 0.02, 9);
   cabinet.add(cord(line, 0.003, string));

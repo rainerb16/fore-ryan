@@ -175,7 +175,7 @@ export function buildCabinet(spec: CabinetSpec, head: HTMLImageElement | null): 
       new MeshStandardMaterial({
         color: lit ? colour : "#2a2a30",
         emissive: lit ? colour : "#000000",
-        emissiveIntensity: lit ? 0.7 : 0,
+        emissiveIntensity: lit ? 0.35 : 0,
         roughness: 0.2,
       }),
     );
@@ -274,7 +274,7 @@ export function buildCabinet(spec: CabinetSpec, head: HTMLImageElement | null): 
     setFocused(on) {
       if (!screen) return;
       tube.color.setScalar(on ? 1 : 0.6);
-      trim.emissiveIntensity = on ? 0.22 : 0.08;
+      trim.emissiveIntensity = on ? 0.12 : 0.08;
       if (spill) spill.opacity = on ? 0.45 : 0.25;
     },
   };

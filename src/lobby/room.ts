@@ -90,7 +90,7 @@ export function buildRoom(scene: Scene, spotXs: number[], lowPower: boolean): Ro
     glow(pool, 1.9, 1.9, x, 0.004, -0.1, true);
   }
 
-  const spot = new SpotLight("#ffe9d0", 28, 7, 0.45, 0.6, 1.6);
+  const spot = new SpotLight("#ffe9d0", 14, 7, 0.45, 0.6, 1.6);
   spot.position.set(0, 3.4, 0.6);
   // The one real shadow in the room, under the cabinet in focus.
   spot.castShadow = true;
