@@ -4,7 +4,6 @@
 
 import {
   BoxGeometry,
-  Color,
   DirectionalLight,
   ExtrudeGeometry,
   Fog,
@@ -19,11 +18,14 @@ import {
   SphereGeometry,
   Vector3,
 } from "three";
-import { createView } from "../../../shared/three";
+import { createBloom, createView, isLowPower } from "../../../shared/three";
 import { hillY, inrunPoints, inrunPosition, LANDING, type Jump } from "../rules";
+import { buildWorld } from "./world";
 
-const HILL_WIDTH = 12;
-const NIGHT = "#0a1230";
+/** The hillside runs back from the track (z = -6..6) so trees have ground to stand on. */
+const HILL_FRONT = 6;
+const HILL_BACK = -170;
+const NIGHT = "#0a1534";
 
 function buildHill(): Mesh {
   const shape = new Shape();
@@ -37,9 +39,9 @@ function buildHill(): Mesh {
   shape.lineTo(LANDING.end + 80, base);
   shape.closePath();
 
-  const geometry = new ExtrudeGeometry(shape, { depth: HILL_WIDTH, bevelEnabled: false, curveSegments: 1 });
-  geometry.translate(0, 0, -HILL_WIDTH / 2);
-  const hill = new Mesh(geometry, new MeshStandardMaterial({ color: "#e8eefc", roughness: 0.9 }));
+  const geometry = new ExtrudeGeometry(shape, { depth: HILL_FRONT - HILL_BACK, bevelEnabled: false, curveSegments: 1 });
+  geometry.translate(0, 0, HILL_BACK);
+  const hill = new Mesh(geometry, new MeshStandardMaterial({ color: "#dfe7fa", roughness: 0.95 }));
   hill.receiveShadow = true;
   return hill;
 }
@@ -72,21 +74,26 @@ export interface JumpView {
 
 export function createJumpView(canvas: HTMLCanvasElement): JumpView {
   const scene = new Scene();
-  scene.background = new Color(NIGHT);
-  scene.fog = new Fog(NIGHT, 60, 320);
+  scene.fog = new Fog(NIGHT, 80, 420);
+  const lowPower = isLowPower();
 
-  scene.add(new HemisphereLight("#6f86c9", "#dfe8ff", 0.9));
-  const moon = new DirectionalLight("#cdd8ff", 1.4);
+  // Moonlit snow: cool blue ambient, a soft moon from behind the left shoulder.
+  scene.add(new HemisphereLight("#5c74b8", "#c9d6f2", 0.75));
+  const moon = new DirectionalLight("#c9d6ff", 1.1);
   moon.position.set(-60, 120, 80);
   scene.add(moon);
 
   scene.add(buildHill());
+  const world = buildWorld(scene, lowPower);
   const jumper = buildJumper();
   const lean = jumper.getObjectByName("lean")!;
   scene.add(jumper);
 
-  const camera = new PerspectiveCamera(50, 1, 0.5, 900);
-  const renderer = createView(canvas, camera);
+  const camera = new PerspectiveCamera(50, 1, 0.5, 3000);
+  const renderer = createView(canvas, camera, (w, h) => bloom.resize(w, h));
+  // Lamps, the tower's lights, and the star glow; the snow and sky do not.
+  const bloom = createBloom(renderer, scene, camera, { strength: 0.7, radius: 0.5, threshold: 0.7, lowPower });
+  let time = 0;
 
   const camPos = new Vector3();
   const camLook = new Vector3();
@@ -122,7 +129,7 @@ export function createJumpView(canvas: HTMLCanvasElement): JumpView {
 
       // Side-follow: close on the inrun, pulled back in the air to show the landing.
       const flying = j.phase === "flight" || j.phase === "outrun" || j.phase === "done";
-      wantPos.set(x + (flying ? 10 : 4), y + (flying ? 5 : 3), flying ? 32 : 16);
+      wantPos.set(x + (flying ? 9 : 4), y + (flying ? 4 : 3), flying ? 24 : 16);
       wantLook.set(x + (flying ? 14 : 6), y - (flying ? 6 : 1), 0);
       if (first) {
         camPos.copy(wantPos);
@@ -137,7 +144,10 @@ export function createJumpView(canvas: HTMLCanvasElement): JumpView {
       camera.position.copy(camPos);
       camera.lookAt(camLook);
 
-      renderer.render(scene, camera);
+      time += dt;
+      world.snow.update(camPos, dt);
+      world.tower.update(time);
+      bloom.render();
     },
   };
 }

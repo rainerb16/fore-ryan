@@ -81,6 +81,18 @@ export const hillY = (x: number): number => sample(landing.y, x);
 /** Distance measured along the landing hill from the lip to x. */
 export const distanceAt = (x: number): number => sample(landing.s, x);
 
+/** The x where the hill is `d` metres from the lip, measured along the surface. */
+export function xAtDistance(d: number): number {
+  let lo = 0;
+  let hi: number = LANDING.end;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (distanceAt(mid) < d) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 /**
  * The inrun as points from the start gate to the lip, for drawing it. Each is
  * [x, y] relative to the lip.
