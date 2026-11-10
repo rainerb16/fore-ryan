@@ -102,6 +102,10 @@ export default defineConfig({
   build: {
     target: "es2020",
     outDir: "dist",
+    // Every target browser preloads modules natively; the polyfill only adds a fetch.
+    modulePreload: { polyfill: false },
+    // Three.js alone is ~500 kB minified. It loads on demand, after the page is up.
+    chunkSizeWarningLimit: 700,
     rollupOptions: {
       input: {
         lobby: page("index.html"),
