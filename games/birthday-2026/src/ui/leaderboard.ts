@@ -3,7 +3,7 @@
 
 import { fetchLeaderboard, submitRun, type LeaderboardEntry } from "../net/api";
 import { store } from "../game/storage";
-import type { RunSummary } from "../../shared/types";
+import type { RunSummary } from "../../rules/types";
 import {
   boardList,
   boardStatus,

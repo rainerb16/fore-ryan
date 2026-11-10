@@ -1,7 +1,7 @@
 import { BIRTHDAY_LIVES, HEAD_R, MODE, STATE, type GameMode, type GameState } from "./config";
-import { levelConfig } from "../../shared/rules";
-import type { LevelConfig } from "../../shared/rules";
-import type { LevelStats } from "../../shared/types";
+import { levelConfig } from "../../rules/rules";
+import type { LevelConfig } from "../../rules/rules";
+import type { LevelStats } from "../../rules/types";
 import type { Confetti, Hazard, Hole, Player, Shot, Spark } from "./types";
 
 /** Scalar game state. Grouped in one object so modules share live values. */

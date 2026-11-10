@@ -1,9 +1,9 @@
 // Run and level bookkeeping. Deliberately has no opinion on screens or audio —
 // update.ts drives the transitions so this stays a cycle-free leaf.
 
-import { levelConfig } from "../../shared/rules";
-import { scoreLevel } from "../../shared/scoring";
-import type { LevelStats, RunSummary } from "../../shared/types";
+import { levelConfig } from "../../rules/rules";
+import { scoreLevel } from "../../rules/scoring";
+import type { LevelStats, RunSummary } from "../../rules/types";
 import { updateHud } from "../ui/hud";
 import { BIRTHDAY_LIVES, CONTEST_LIVES, MODE, type GameMode } from "./config";
 import { rand } from "./rng";

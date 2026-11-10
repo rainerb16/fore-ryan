@@ -1,10 +1,10 @@
-// Rules the server also needs live in shared/ — imported here, never redeclared.
-export { BIRTHDAY_LIVES, CONTEST_LIVES, HAZARDS, SHOT_COOLDOWN } from "../../shared/rules";
-export type { HazardType } from "../../shared/rules";
+// Rules the server also needs live in ../rules/ — imported here, never redeclared.
+export { BIRTHDAY_LIVES, CONTEST_LIVES, HAZARDS, SHOT_COOLDOWN } from "../../rules/rules";
+export type { HazardType } from "../../rules/rules";
 
 // --- assets -----------------------------------------------------------------
 // To use a different photo: point HEAD_IMAGE_SRC at it and set HEAD_TRIM to null.
-export const HEAD_IMAGE_SRC = "assets/ryan-head-floating.png";
+export const HEAD_IMAGE_SRC = "/assets/ryan/ryan-head-floating.png";
 export const HEAD_PARTY_IMAGE_SRC = "";
 
 // Bounds of the head inside the PNG's transparent margins, as fractions.

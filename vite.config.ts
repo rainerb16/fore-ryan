@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { fileURLToPath } from "node:url";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 
 /**
@@ -92,10 +93,20 @@ function siteUrlPlugin(): Plugin {
   };
 }
 
+const page = (path: string): string => fileURLToPath(new URL(path, import.meta.url));
+
 export default defineConfig({
+  // One HTML entry per page, so no SPA fallback: a bad path should 404.
+  appType: "mpa",
   plugins: [netlifyFunctionsDev(), siteUrlPlugin()],
   build: {
     target: "es2020",
     outDir: "dist",
+    rollupOptions: {
+      input: {
+        lobby: page("index.html"),
+        "birthday-2026": page("games/birthday-2026/index.html"),
+      },
+    },
   },
 });

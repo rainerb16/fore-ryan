@@ -6,8 +6,8 @@
 import { consumeToken, findToken, insertRun, recentRunCount } from "./_db";
 import { contestIsClosed, RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
 import { cleanName, clientIp, fail, hashIp, isUuid, json } from "./_http";
-import { validateRun } from "../../shared/scoring";
-import type { RunSummary } from "../../shared/types";
+import { validateRun } from "../../games/birthday-2026/rules/scoring";
+import type { RunSummary } from "../../games/birthday-2026/rules/types";
 
 interface Payload {
   token?: unknown;

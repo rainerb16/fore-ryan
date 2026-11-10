@@ -1,7 +1,7 @@
 // Talks to the Netlify Functions. Every call degrades quietly: the game stays
 // playable with the backend down, you just cannot post a score.
 
-import type { RunSummary } from "../../shared/types";
+import type { RunSummary } from "../../rules/types";
 
 export interface LeaderboardEntry {
   rank: number | null;

@@ -1,5 +1,5 @@
-import { levelConfig } from "../../shared/rules";
-import { scoreLevel } from "../../shared/scoring";
+import { levelConfig } from "../../rules/rules";
+import { scoreLevel } from "../../rules/scoring";
 import { initAudio, sfx } from "../game/audio";
 import { BIRTHDAY_LIVES, MODE, STATE, type GameMode } from "../game/config";
 import { bankLevel, runSummary, startRun } from "../game/progression";
