@@ -54,9 +54,7 @@ export function buildPoster(logo: HTMLImageElement | null, guy: HTMLImageElement
 
     ctx.fillStyle = "#ffffff";
     ctx.font = `600 26px ${SUBHEAD}`;
-    ctx.fillText("Heating.", 232, 510);
-    ctx.fillText("Cooling.", 232, 546);
-    ctx.fillText("High scores.", 232, 582);
+    ["Heating.", "Cooling.", "Plumbing.", "High scores."].forEach((line, i) => ctx.fillText(line, 232, 500 + i * 34));
 
     // The Action Furnace Guy, giving the arcade a thumbs up.
     if (guy) {
