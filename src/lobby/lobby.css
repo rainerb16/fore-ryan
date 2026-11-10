@@ -147,9 +147,26 @@ body.no-webgl { overflow: auto; }
   #fade { transition: none; }
 }
 
-#cabinets .credit {
+/* --- maker's credit: under the list, or pinned in a corner over the room ---- */
+
+#credit {
   margin: 0 0 32px;
   text-align: center;
   font-size: 13px;
+  letter-spacing: 0.04em;
   color: var(--muted);
+}
+#credit span {
+  color: var(--neon);
+  text-shadow: 0 0 8px rgba(255, 63, 208, 0.6);
+}
+
+body:not(.webgl):not(.no-webgl) #credit { visibility: hidden; }
+
+body.webgl #credit {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 16px;
+  margin: 0;
+  pointer-events: none;
 }
