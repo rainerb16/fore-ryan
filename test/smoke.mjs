@@ -80,11 +80,14 @@ console.log("run over           :", g.text("runHeadline"), `· ${rows} levels on
 console.log("                    ", g.text("runStats"));
 
 // --- offline degradation ----------------------------------------------------
-// With no fetch, run-start could never have answered. The run must be reported
-// as unpostable rather than offering a form that cannot work.
-if (!g.el("submitForm").hidden) fail("offline run should not offer the submission form");
-if (!/offline/i.test(g.text("submitStatus"))) {
-  fail(`expected an offline message, got: ${g.text("submitStatus")}`);
+// With no fetch, the server could never answer. The run is kept on this device
+// instead, and the standings show it, so a paused database never costs a score.
+if (g.el("submitForm").hidden) fail("offline run should still offer to save the score locally");
+g.type("nameInput", "Smoke Test");
+g.submit("submitForm");
+await g.settle(50);
+if (!/saved on this device/i.test(g.text("submitStatus"))) {
+  fail(`expected a saved-locally message, got: ${g.text("submitStatus")}`);
 }
 console.log("offline path       :", g.text("submitStatus"));
 
@@ -92,9 +95,12 @@ g.click("runBoardBtn");
 await g.settle(50);
 if (g.el("boardScreen").hidden) fail("the standings screen did not open");
 const boardMsg = g.text("boardStatus");
-if (!boardMsg) fail("the standings screen showed no status with the API down");
 if (/fetch|undefined|TypeError/i.test(boardMsg)) {
   fail(`a raw error leaked to the player: ${boardMsg}`);
+}
+if (!/offline/i.test(boardMsg)) fail(`expected an offline note, got: ${boardMsg}`);
+if (!g.el("boardList").textContent.includes("Smoke Test")) {
+  fail("the locally saved score is missing from the standings");
 }
 console.log("standings offline  :", boardMsg);
 

@@ -2,6 +2,9 @@
 export { BIRTHDAY_LIVES, CONTEST_LIVES, HAZARDS, SHOT_COOLDOWN } from "../../rules/rules";
 export type { HazardType } from "../../rules/rules";
 
+/** This game's id in the arcade registry and on the leaderboard. */
+export const GAME_ID = "birthday-2026";
+
 // --- assets -----------------------------------------------------------------
 // To use a different photo: point HEAD_IMAGE_SRC at it and set HEAD_TRIM to null.
 export const HEAD_IMAGE_SRC = "/assets/ryan/ryan-head-floating.png";

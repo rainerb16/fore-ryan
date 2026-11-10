@@ -46,7 +46,7 @@ function fakeApi(routes = {}) {
     if (path === "/api/leaderboard") return ok({ top: ENTRIES, mine: null, closesAt: null, closed: false });
     if (path === "/api/submit-run") {
       // The real gate, not a rubber stamp.
-      const result = validateRun(JSON.parse(init.body).summary);
+      const result = validateRun(JSON.parse(init.body).details);
       if (!result.ok) {
         return new Response(
           JSON.stringify({ error: `That run did not add up: ${result.reasons.join("; ")}` }),
@@ -149,7 +149,7 @@ test("an empty board invites the first run", async () => {
   assert.match(g.text("boardStatus"), /first/i);
 });
 
-test("a failing board request shows the server's message, not a stack trace", async () => {
+test("a server outage on the board falls back to this device's scores", async () => {
   const api = fakeApi({
     "/api/leaderboard": () =>
       new Response(JSON.stringify({ error: "Could not load the leaderboard" }), { status: 500 }),
@@ -159,7 +159,19 @@ test("a failing board request shows the server's message, not a stack trace", as
   g.click("boardBtn");
   await g.settle(20);
 
-  assert.equal(g.text("boardStatus"), "Could not load the leaderboard");
+  assert.match(g.text("boardStatus"), /offline/);
+});
+
+test("a refused board request shows the server's message, not a stack trace", async () => {
+  const api = fakeApi({
+    "/api/leaderboard": () => new Response(JSON.stringify({ error: "Use GET" }), { status: 405 }),
+  });
+  const g = bootGame({ fetch: api.fetch });
+
+  g.click("boardBtn");
+  await g.settle(20);
+
+  assert.equal(g.text("boardStatus"), "Use GET");
 });
 
 // --- submission -------------------------------------------------------------
@@ -445,11 +457,12 @@ test("a finished run posts the score and reports the rank", async () => {
   assert.equal(body.displayName, "Ryan B");
   assert.match(body.playerId, /^[0-9a-f-]{36}$/);
   assert.equal(body.token, "11111111-2222-3333-4444-555555555555");
-  assert.ok(body.summary.levels.length > 0, "the per-level stats must be included");
+  assert.equal(body.gameId, "birthday-2026");
+  assert.ok(body.details.levels.length > 0, "the per-level stats must be included");
 
   // The run was accepted by the real validator, not a stub — a genuinely played
   // run has to survive the same gate the server applies.
-  const verdict = validateRun(body.summary);
+  const verdict = validateRun(body.details);
   assert.deepEqual(verdict.reasons, [], "a real run must satisfy the server's own rules");
 
   assert.match(g.text("submitStatus"), /Posted/);
@@ -535,7 +548,7 @@ test("nothing personal is sent anywhere", async () => {
     assert.ok(!call.url.includes("@"), `an address reached a URL: ${call.url}`);
     const body = call.body ? JSON.parse(call.body) : {};
     assert.deepEqual(
-      Object.keys(body).filter((k) => !["token", "displayName", "playerId", "summary"].includes(k)),
+      Object.keys(body).filter((k) => !["gameId", "token", "displayName", "playerId", "details"].includes(k)),
       [],
       "an unexpected field was submitted",
     );

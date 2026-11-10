@@ -1,8 +1,10 @@
 // The standings screen and the submission form. Owns no overlay visibility —
 // screens.ts decides what is on show, so the two do not import each other.
 
-import { fetchLeaderboard, submitRun, type LeaderboardEntry } from "../net/api";
-import { store } from "../game/storage";
+import { cleanName } from "../../../../shared/names";
+import { getLeaderboard, submitRun, type LeaderboardEntry } from "../../../../shared/scores";
+import { store } from "../../../../shared/storage";
+import { GAME_ID } from "../game/config";
 import type { RunSummary } from "../../rules/types";
 import {
   boardList,
@@ -16,21 +18,8 @@ import { row } from "./elements";
 import { formatDuration, formatPoints } from "./format";
 
 const NAME_KEY = "ryanbday.name";
-const PLAYER_KEY = "ryanbday.player";
-
-/**
- * A random id this browser keeps, so a person's runs collapse to their best and
- * they can be shown their own standing. It identifies nobody and proves nothing:
- * clearing site data makes you a new player, which is the accepted cost of not
- * asking for an email.
- */
-function playerId(): string {
-  const saved = store.get(PLAYER_KEY, "");
-  if (saved) return saved;
-  const id = crypto.randomUUID();
-  store.set(PLAYER_KEY, id);
-  return id;
-}
+/** The standings screen's length, as the API served it before the arcade. */
+const BOARD_LIMIT = 25;
 
 /** The run waiting to be posted. Cleared once it is in. */
 let pending: { summary: RunSummary; token: string | null } | null = null;
@@ -56,9 +45,9 @@ export function armSubmission(summary: RunSummary, token: string | null): void {
   submitBtn.disabled = false;
 
   if (!token) {
-    // run-start never answered, so this run can never be posted.
+    // The server refused to start the run (closed or rate limited).
     submitForm.hidden = true;
-    submitStatus.textContent = "The leaderboard is offline — this run can't be posted.";
+    submitStatus.textContent = "The leaderboard isn't taking runs right now — this one can't be posted.";
   } else if (summary.points <= 0) {
     submitForm.hidden = true;
     submitStatus.textContent = "Sink at least one hole to post a score.";
@@ -71,18 +60,19 @@ async function post(event: Event): Promise<void> {
   event.preventDefault();
   if (posting || !pending?.token) return;
 
-  const displayName = nameInput.value.trim();
+  const displayName = cleanName(nameInput.value);
   if (!displayName) return;
 
   posting = true;
   submitBtn.disabled = true;
   submitStatus.textContent = "Posting…";
 
-  const result = await submitRun({
-    token: pending.token,
+  const { summary } = pending;
+  const result = await submitRun(GAME_ID, pending.token, {
     displayName,
-    playerId: playerId(),
-    summary: pending.summary,
+    points: summary.points,
+    durationMs: summary.durationMs,
+    details: summary,
   });
 
   if (!result.ok) {
@@ -95,12 +85,18 @@ async function post(event: Event): Promise<void> {
   store.set(NAME_KEY, displayName); // so a second run is not a retype
 
   submitForm.hidden = true;
-  submitStatus.textContent = `Posted — ${formatPoints(result.points)} points.`;
   pending = null;
+
+  if (result.local) {
+    submitStatus.textContent =
+      `The leaderboard is offline — ${formatPoints(result.points)} points saved on this device.`;
+    return;
+  }
+  submitStatus.textContent = `Posted — ${formatPoints(result.points)} points.`;
 
   // The rank is a payoff, not worth failing the submission over.
   try {
-    const { mine } = await fetchLeaderboard(playerId());
+    const { mine } = await getLeaderboard(GAME_ID, BOARD_LIMIT);
     if (mine?.rank) {
       submitStatus.textContent =
         `Posted — ${formatPoints(result.points)} points. You're #${mine.rank}. 🏆`;
@@ -121,7 +117,10 @@ function entryRow(entry: LeaderboardEntry, isMine: boolean): HTMLLIElement {
   return row(isMine ? "mine" : "", COLUMNS, [
     medal || String(entry.rank ?? "—"),
     entry.display_name,
-    `LVL ${entry.level_reached} · ${formatDuration(entry.duration_ms)}`,
+    // Scores kept on this device carry no level.
+    [entry.level_reached && `LVL ${entry.level_reached}`, formatDuration(entry.duration_ms)]
+      .filter(Boolean)
+      .join(" · "),
     formatPoints(entry.points),
   ]);
 }
@@ -131,8 +130,16 @@ export async function loadBoard(): Promise<void> {
   boardStatus.textContent = "Loading…";
 
   try {
-    const { top, mine, closesAt, closed } = await fetchLeaderboard(store.get(PLAYER_KEY, "") || null);
+    const { top, mine, closesAt, closed, local } = await getLeaderboard(GAME_ID, BOARD_LIMIT);
     const deadline = deadlineNote(closesAt, closed);
+
+    if (local) {
+      boardStatus.textContent = top.length
+        ? "The leaderboard is offline — showing scores saved on this device."
+        : "The leaderboard is offline, and no scores are saved on this device yet.";
+      boardList.append(...top.map((e) => entryRow(e, false)));
+      return;
+    }
 
     if (top.length === 0) {
       boardStatus.textContent = closed

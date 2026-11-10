@@ -1,12 +1,12 @@
 import { levelConfig } from "../../rules/rules";
 import { scoreLevel } from "../../rules/scoring";
 import { initAudio, sfx } from "../game/audio";
-import { BIRTHDAY_LIVES, MODE, STATE, type GameMode } from "../game/config";
+import { BIRTHDAY_LIVES, GAME_ID, MODE, STATE, type GameMode } from "../game/config";
 import { bankLevel, runSummary, startRun } from "../game/progression";
 import { game } from "../game/state";
-import { store } from "../game/storage";
+import { store } from "../../../../shared/storage";
 import { burstConfetti, reset } from "../game/world";
-import { requestRunToken } from "../net/api";
+import { startRun as requestRunToken } from "../../../../shared/scores";
 import { applyTheme } from "../render/theme";
 import { hideBanner, showBanner } from "./banner";
 import {
@@ -48,7 +48,7 @@ export function startGame(mode: GameMode): void {
     showBanner("Level 1", game.cfg.name);
     // Asked for as play begins, so the server has its own clock on the run.
     game.runToken = null;
-    void requestRunToken().then((token) => {
+    void requestRunToken(GAME_ID).then((token) => {
       game.runToken = token;
     });
   }

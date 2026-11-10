@@ -13,5 +13,5 @@
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["functions", "../shared", "../games/birthday-2026/rules"]
+  "include": ["functions"]
 }
