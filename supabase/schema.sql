@@ -1,10 +1,13 @@
--- Fore Ryan! leaderboard schema.
+-- Ryan Arcade leaderboard schema.
 -- Run this in the Supabase SQL editor (Dashboard -> SQL Editor -> New query).
--- Every statement is idempotent, so it is safe to re-run after a change here.
+-- Every statement is idempotent, so it is safe to re-run after a change here,
+-- and the whole file is one transaction: it applies completely or not at all.
 --
 -- Nothing here is reachable with the anon key. Row Level Security is on and no
 -- policies are granted, so the only way in is a Netlify Function holding the
 -- service role key. That key must never reach the browser.
+
+begin;
 
 -- --------------------------------------------------------------------------
 -- run_tokens: issued when a contest run starts, consumed when it is submitted.
@@ -84,30 +87,79 @@ create index if not exists runs_player_id_idx   on runs (player_id);
 create index if not exists runs_created_at_idx  on runs (created_at desc);
 
 -- --------------------------------------------------------------------------
--- leaderboard: each player's best run, so one person cannot fill the top ten.
--- Ranked by points, then by the faster run as the tie-break.
+-- Arcade: one database for every game. Extended in place — existing rows are
+-- tagged as the birthday game by the column defaults, and nothing is dropped
+-- or renamed.
+-- --------------------------------------------------------------------------
+create table if not exists games (
+  id       text primary key,              -- occasion and year: 'christmas-2026'
+  title    text not null,
+  occasion text not null,
+  year     int  not null,
+  sort     text not null default 'desc' check (sort in ('asc', 'desc'))
+);
+
+insert into games (id, title, occasion, year, sort) values
+  ('birthday-2026',  'Fore Ryan!',      'Birthday',  2026, 'desc'),
+  ('christmas-2026', 'Ryan Ski Jump',   'Christmas', 2026, 'desc')
+on conflict (id) do update
+  set title = excluded.title, occasion = excluded.occasion,
+      year = excluded.year, sort = excluded.sort;
+
+alter table runs
+  add column if not exists game_id text not null default 'birthday-2026' references games (id);
+alter table run_tokens
+  add column if not exists game_id text not null default 'birthday-2026' references games (id);
+
+-- Game-specific stats for games after golf. Golf keeps its own columns, which
+-- become optional because the other games leave them empty.
+alter table runs add column if not exists details jsonb;
+alter table runs alter column level_reached  drop not null;
+alter table runs alter column levels_cleared drop not null;
+alter table runs alter column shots_fired    drop not null;
+alter table runs alter column holes_sunk     drop not null;
+alter table runs alter column levels         drop not null;
+
+create index if not exists runs_game_points_idx on runs (game_id, points desc);
+
+-- --------------------------------------------------------------------------
+-- leaderboard: each player's best run per game, so one person cannot fill a
+-- top ten. Best means the game's own direction (most points, or fewest), then
+-- the faster run as the tie-break.
 -- --------------------------------------------------------------------------
 drop view if exists leaderboard;
 
 create view leaderboard as
-select distinct on (player_id)
-  player_id,
-  display_name,
-  points,
-  level_reached,
-  levels_cleared,
-  duration_ms,
-  created_at
-from runs
-where not flagged
-order by player_id, points desc, duration_ms asc;
+select distinct on (r.game_id, r.player_id)
+  r.game_id,
+  r.player_id,
+  r.display_name,
+  r.points,
+  r.level_reached,
+  r.levels_cleared,
+  r.duration_ms,
+  r.details,
+  r.created_at
+from runs r
+join games g on g.id = r.game_id
+where not r.flagged
+order by r.game_id, r.player_id,
+  case when g.sort = 'desc' then r.points end desc,
+  case when g.sort = 'asc'  then r.points end asc,
+  r.duration_ms asc;
 
 -- --------------------------------------------------------------------------
--- Lock everything down. No policies are created on purpose.
+-- Lock everything down. No policies are created on purpose. The view is
+-- revoked again every time it is recreated, since Supabase grants new objects
+-- to anon by default.
 -- --------------------------------------------------------------------------
 alter table runs       enable row level security;
 alter table run_tokens enable row level security;
+alter table games      enable row level security;
 
 revoke all on runs        from anon, authenticated;
 revoke all on run_tokens  from anon, authenticated;
+revoke all on games       from anon, authenticated;
 revoke all on leaderboard from anon, authenticated;
+
+commit;

@@ -164,7 +164,7 @@ Set these in Netlify under **Site configuration → Environment variables**:
 | `SUPABASE_URL` | Supabase → Project Settings → Data API |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API Keys. Server only |
 | `HASH_SALT` | Any long random string you generate once. `EMAIL_HASH_SALT` is still accepted |
-| `CONTEST_ENDS_AT` | Optional ISO timestamp. After it, runs can't be started or posted; the standings stay readable |
+| `CONTEST_ENDS_AT` | Optional ISO timestamp closing the Fore Ryan! contest. After it, runs can't be started or posted; the standings stay readable. Each game names its own variable in `netlify/functions/_games.ts` |
 
 The service role key bypasses Row Level Security. It belongs only in Netlify's environment,
 never in the repo or in client code.

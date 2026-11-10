@@ -54,11 +54,13 @@ function installFakeDatabase() {
     const idIn = (p) => decodeURIComponent(p.match(/token=eq\.([^&]+)/)[1]);
 
     if (path === "run_tokens" && method === "POST") {
+      const { game_id, ip_hash } = JSON.parse(init.body);
       const row = {
         token: randomUUID(),
+        game_id: game_id ?? "birthday-2026", // the column's default
         issued_at: new Date().toISOString(),
         used_at: null,
-        ip_hash: JSON.parse(init.body).ip_hash,
+        ip_hash,
       };
       tokens.set(row.token, row);
       return ok([row]);
@@ -95,22 +97,29 @@ function installFakeDatabase() {
 
     // The leaderboard view: each person is already reduced to their best run.
     if (path.startsWith("leaderboard?") && method === "GET") {
+      // Every read must be scoped to one game, or boards would mix.
+      const game = path.match(/game_id=eq\.([^&]+)/);
+      if (!game) throw new Error("leaderboard read without a game filter: " + path);
+      const rows = board.filter((r) => (r.game_id ?? "birthday-2026") === decodeURIComponent(game[1]));
+
       // Counting the runs that beat a given one, for a rank below the cut.
-      const beats = path.match(/points\.gt\.(\d+).+duration_ms\.lt\.(\d+)/);
+      const beats = path.match(/points\.(gt|lt)\.(\d+).+duration_ms\.lt\.(\d+)/);
       if (beats) {
-        const [, pts, ms] = beats.map(Number);
-        const n = board.filter(
-          (r) => r.points > pts || (r.points === pts && r.duration_ms < ms),
+        const [, op, pts, ms] = beats;
+        const better = (p) => (op === "gt" ? p > Number(pts) : p < Number(pts));
+        const n = rows.filter(
+          (r) => better(r.points) || (r.points === Number(pts) && r.duration_ms < Number(ms)),
         ).length;
         return ok([], { "content-range": "0-0/" + n });
       }
       const hash = path.match(/player_id=eq\.([^&]+)/);
-      if (hash) return ok(board.filter((r) => r.player_id === decodeURIComponent(hash[1])));
+      if (hash) return ok(rows.filter((r) => r.player_id === decodeURIComponent(hash[1])));
 
       // The view is ordered and paged by the database, so the fake must be too.
-      const limit = Number(path.match(/limit=(\d+)/)?.[1] ?? board.length);
-      const ranked = [...board].sort(
-        (a, b) => b.points - a.points || a.duration_ms - b.duration_ms,
+      const limit = Number(path.match(/limit=(\d+)/)?.[1] ?? rows.length);
+      const dir = path.includes("order=points.asc") ? -1 : 1;
+      const ranked = [...rows].sort(
+        (a, b) => dir * (b.points - a.points) || a.duration_ms - b.duration_ms,
       );
       return ok(ranked.slice(0, limit));
     }
@@ -143,9 +152,10 @@ const summaryOf = (levels, over = {}) => ({
 });
 
 /** A token issued far enough in the past that the wall-clock check passes. */
-function tokenIssuedAgo(ms) {
+function tokenIssuedAgo(ms, gameId = "birthday-2026") {
   const row = {
     token: randomUUID(),
+    game_id: gameId,
     issued_at: new Date(Date.now() - ms).toISOString(),
     used_at: null,
   };
@@ -173,13 +183,31 @@ const goodSubmission = (over = {}) => ({
 
 // --- run-start --------------------------------------------------------------
 
-const startRunReq = (ip = "203.0.113.7") =>
+const startRunReq = (ip = "203.0.113.7", body) =>
   runStart(
     new Request("https://example.com/api/run-start", {
       method: "POST",
       headers: { "x-nf-client-connection-ip": ip },
+      body: body === undefined ? undefined : JSON.stringify(body),
     }),
   );
+
+test("run-start issues a token tied to the requested game", async () => {
+  const res = await startRunReq(undefined, { gameId: "birthday-2026" });
+  assert.equal(res.status, 200);
+  const { token } = await res.json();
+  assert.equal(tokens.get(token).game_id, "birthday-2026");
+});
+
+test("run-start treats a request with no body as golf, as pre-arcade clients sent", async () => {
+  const { token } = await (await startRunReq()).json();
+  assert.equal(tokens.get(token).game_id, "birthday-2026");
+});
+
+test("run-start refuses a game it does not know", async () => {
+  assert.equal((await startRunReq(undefined, { gameId: "halloween-1999" })).status, 400);
+  assert.equal(tokens.size, 0);
+});
 
 test("run-start caps how many tokens one address can mint", async () => {
   for (let i = 0; i < 60; i++) {
@@ -426,4 +454,33 @@ test("still accepts the pre-arcade payload, with the stats under summary", async
   assert.equal(gameId, "birthday-2026");
   const res = await post({ ...legacy, summary: details });
   assert.equal(res.status, 200);
+});
+
+// --- games ------------------------------------------------------------------
+
+test("a run is stored against its game, unflagged when the rules accept it", async () => {
+  assert.equal((await post(goodSubmission())).status, 200);
+  assert.equal(runs[0].game_id, "birthday-2026");
+  assert.equal(runs[0].flagged, false);
+});
+
+test("a submission for an unknown game is refused", async () => {
+  assert.equal((await post(goodSubmission({ gameId: "halloween-1999" }))).status, 400);
+  assert.equal(runs.length, 0);
+});
+
+test("a token only works for the game it was issued for", async () => {
+  const res = await post(goodSubmission({ token: tokenIssuedAgo(120000, "christmas-2026") }));
+  assert.equal(res.status, 403);
+  assert.equal(runs.length, 0);
+});
+
+test("the standings only list the requested game", async () => {
+  board.push(boardRow(), boardRow({ game_id: "christmas-2026", player_id: "33333333-aaaa-4bbb-8ccc-444444444444", display_name: "Elf", points: 99999 }));
+  const { top } = await (await getBoard("?game=birthday-2026")).json();
+  assert.deepEqual(top.map((r) => r.display_name), ["Dana"]);
+});
+
+test("the standings refuse a game they do not know", async () => {
+  assert.equal((await getBoard("?game=halloween-1999")).status, 400);
 });
