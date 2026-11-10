@@ -105,7 +105,8 @@ export class AttractScreen {
     if (!shot) {
       this.text(ctx, this.game.title.toUpperCase(), 92, 34, this.palette.secondary);
       this.text(ctx, `${this.game.occasion.toUpperCase()} ${this.game.year}`, 132, 18, this.palette.primary);
-      if (blink) this.text(ctx, "PRESS START", 196, 18, "#ffffff");
+      if (blink) this.text(ctx, "PRESS START", 190, 18, "#ffffff");
+      this.credit(ctx);
       return;
     }
     // Gameplay, cropped to fill the tube, with the title over it like a demo loop.
@@ -121,9 +122,17 @@ export class AttractScreen {
     this.text(ctx, this.game.title.toUpperCase(), 26, 24, this.palette.secondary);
     if (blink) {
       ctx.fillStyle = "rgba(5,3,13,0.6)";
-      ctx.fillRect(W / 2 - 80, 198, 160, 26);
-      this.text(ctx, "PRESS START", 211, 16, "#ffffff");
+      ctx.fillRect(W / 2 - 80, 180, 160, 26);
+      this.text(ctx, "PRESS START", 193, 16, "#ffffff");
     }
+    ctx.fillStyle = "rgba(5,3,13,0.75)";
+    ctx.fillRect(0, H - 24, W, 24);
+    this.credit(ctx);
+  }
+
+  /** The maker's line along the bottom, as real title screens carried. */
+  private credit(ctx: CanvasRenderingContext2D): void {
+    this.text(ctx, "CODED BY RAINER B.", H - 12, 14, "#c8bfe6");
   }
 
   private highScores(ctx: CanvasRenderingContext2D): void {

@@ -146,3 +146,10 @@ body.no-webgl { overflow: auto; }
 @media (prefers-reduced-motion: reduce) {
   #fade { transition: none; }
 }
+
+#cabinets .credit {
+  margin: 0 0 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}

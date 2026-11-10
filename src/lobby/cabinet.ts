@@ -23,7 +23,7 @@ import {
 } from "three";
 import type { GameEntry } from "../../shared/games";
 import { AttractScreen } from "./screen";
-import { ARCADE_FONT, contactShadow, lightPool, marquee, paint, PALETTES, sideArt } from "./textures";
+import { ARCADE_FONT, contactShadow, lightPool, marquee, paint, PALETTES, SCRIPT_FONT, sideArt } from "./textures";
 
 export const CABINET_WIDTH = 0.74;
 const PANEL = 0.04; // side panel thickness
@@ -77,14 +77,18 @@ function box(w: number, h: number, d: number, material: Material | Material[], x
 
 /** A taped-on paper sign for the broken machines. */
 const outOfOrder = (): Texture =>
-  paint(256, 160, (ctx) => {
+  paint(256, 200, (ctx) => {
     ctx.fillStyle = "#f4f0e2";
-    ctx.fillRect(0, 0, 256, 160);
+    ctx.fillRect(0, 0, 256, 200);
     ctx.fillStyle = "#c22";
     ctx.font = `bold 40px ${ARCADE_FONT}`;
     ctx.textAlign = "center";
-    ctx.fillText("OUT OF", 128, 68);
-    ctx.fillText("ORDER", 128, 116);
+    ctx.fillText("OUT OF", 128, 58);
+    ctx.fillText("ORDER", 128, 104);
+    // Scrawled underneath in blue pen.
+    ctx.fillStyle = "#1f3fbf";
+    ctx.font = `46px ${SCRIPT_FONT}`;
+    ctx.fillText("Rainer's on it!", 128, 166, 236);
   });
 
 const comingSoon = (): Texture =>
@@ -204,7 +208,7 @@ export function buildCabinet(spec: CabinetSpec, head: HTMLImageElement | null): 
   bezel.add(glass);
   if (spec.kind === "broken") {
     const sign = new Mesh(
-      new PlaneGeometry(0.26, 0.16),
+      new PlaneGeometry(0.26, 0.2),
       new MeshStandardMaterial({ map: outOfOrder(), roughness: 0.9 }),
     );
     sign.position.set(0.04, -0.02, 0.03);
