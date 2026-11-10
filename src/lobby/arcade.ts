@@ -169,7 +169,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   const lookAt = new Vector3();
   runLoop((time, dt) => {
     room.update(time);
-    for (const c of cabinets) c.screen?.update(time);
+    for (const c of cabinets) c.update(time);
 
     if (launching) {
       if (launching.started < 0) launching.started = time;

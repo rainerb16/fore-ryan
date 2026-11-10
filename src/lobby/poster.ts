@@ -78,7 +78,7 @@ export function buildPoster(logo: HTMLImageElement | null, guy: HTMLImageElement
   // kept dim enough that bloom leaves it alone.
   const art = new Mesh(
     new PlaneGeometry(1.0, 1.5),
-    new MeshStandardMaterial({ map: texture, emissiveMap: texture, emissive: "#ffffff", emissiveIntensity: 0.4, roughness: 0.6 }),
+    new MeshStandardMaterial({ map: texture, emissiveMap: texture, emissive: "#ffffff", emissiveIntensity: 0.2, roughness: 0.8 }),
   );
   art.position.z = 0.021;
   group.add(frame, art);
