@@ -19,21 +19,4 @@ export const RATE_LIMIT_PER_HOUR = 20;
 /** Run tokens per IP per hour. Far above anything reachable by playing. */
 export const TOKENS_PER_HOUR = 60;
 
-/** CONTEST_ENDS_AT, or null to run indefinitely. Standings stay readable either way. */
-export function contestEndsAt(): Date | null {
-  const raw = process.env.CONTEST_ENDS_AT;
-  if (!raw) return null;
-  const when = new Date(raw);
-  if (Number.isNaN(when.getTime())) {
-    console.warn(`Ignoring unparseable CONTEST_ENDS_AT: ${raw}`);
-    return null;
-  }
-  return when;
-}
-
-export function contestIsClosed(): boolean {
-  const ends = contestEndsAt();
-  return ends !== null && Date.now() > ends.getTime();
-}
-
 export const LEADERBOARD_LIMIT = 25;
