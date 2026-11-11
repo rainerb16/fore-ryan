@@ -5,6 +5,7 @@
 import { gameById, type GameEntry } from "../../shared/games";
 import { validateRun } from "../../games/birthday-2026/rules/scoring";
 import type { RunSummary } from "../../games/birthday-2026/rules/types";
+import { judgeJump, type JumpDetails } from "../../games/christmas-2026/rules";
 import type { RunColumns } from "./_db";
 
 /**
@@ -42,6 +43,31 @@ const RULES: Record<string, Omit<ServerGame, "entry">> = {
           shots_fired: summary.shotsFired,
           holes_sunk: summary.holesSunk,
           levels: summary.levels,
+        },
+      };
+    },
+  },
+  "christmas-2026": {
+    closesAtVar: "CONTEST_ENDS_AT_CHRISTMAS_2026",
+    judge(details) {
+      const verdict = judgeJump(details);
+      if (!verdict.ok) return verdict;
+      const d = details as JumpDetails;
+      return {
+        ok: true,
+        points: verdict.points,
+        durationMs: verdict.durationMs,
+        flagged: verdict.flagged,
+        // Only the known stats are kept, plus why a flagged jump was flagged, for whoever reviews it.
+        columns: {
+          details: {
+            distance_m: d.distance_m,
+            takeoff_quality: d.takeoff_quality,
+            crashed: d.crashed,
+            best_glide_ms: d.best_glide_ms,
+            duration_ms: d.duration_ms,
+            ...(verdict.flagged ? { flag_reasons: verdict.reasons } : {}),
+          },
         },
       };
     },

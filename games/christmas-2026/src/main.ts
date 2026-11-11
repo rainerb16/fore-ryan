@@ -1,7 +1,9 @@
 import "./styles.css";
+import { startRun } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
-import { distanceAt, newJump, step, timeScale, type Jump } from "../rules";
+import { distanceAt, GAME_ID, newJump, step, timeScale, type Jump } from "../rules";
+import { armPost, loadPodium } from "./board";
 import { attachInput, readInput, readLook, resetInput } from "./input";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -22,6 +24,7 @@ const STEP = 1 / 120;
 
 const startScreen = $("startScreen");
 const resultScreen = $("resultScreen");
+const podiumScreen = $("podiumScreen");
 const hud = $("hud");
 const readout = $("readout");
 const callout = $("callout");
@@ -44,10 +47,20 @@ function call(text: string, bad = false, ms = 1400): void {
 }
 const hideCallout = (): void => callout.classList.remove("on");
 
+function openPodium(note = ""): void {
+  for (const screen of [startScreen, resultScreen, $("noWebgl")]) screen.hidden = true;
+  podiumScreen.hidden = false;
+  void loadPodium(note);
+}
+
 async function boot(): Promise<void> {
+  // The podium needs no 3D, so it is there even where the jump cannot run.
+  for (const id of ["startBoardBtn", "resultBoardBtn", "noWebglBoardBtn"]) $(id).addEventListener("click", () => openPodium());
+
   if (!hasWebGL()) {
     startScreen.hidden = true;
     $("noWebgl").hidden = false;
+    $("podiumAgainBtn").hidden = true;
     return;
   }
 
@@ -61,6 +74,8 @@ async function boot(): Promise<void> {
   let playing = false;
   let lastPhase = jump.phase;
   let acc = 0;
+  /** This jump's run token, asked for as it begins so the server has its own clock on it. */
+  let token: Promise<string | null> = Promise.resolve(null);
 
   function start(): void {
     jump = newJump();
@@ -69,8 +84,10 @@ async function boot(): Promise<void> {
     lastPhase = jump.phase;
     acc = 0;
     resetInput();
+    token = startRun(GAME_ID);
     startScreen.hidden = true;
     resultScreen.hidden = true;
+    podiumScreen.hidden = true;
     hud.hidden = false;
     playing = true;
     call("Tap to push off", false, 0);
@@ -93,6 +110,7 @@ async function boot(): Promise<void> {
       $("resultDetail").textContent = `${jump.quality} take-off · best ${metres(best())}`;
     }
     resultScreen.hidden = false;
+    void armPost(jump, token, openPodium);
   }
 
   /** Callouts as the jump moves from one phase to the next. */
@@ -109,6 +127,7 @@ async function boot(): Promise<void> {
 
   $("startBtn").addEventListener("click", start);
   $("againBtn").addEventListener("click", start);
+  $("podiumAgainBtn").addEventListener("click", start);
   showBest();
 
   let last = performance.now();

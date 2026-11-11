@@ -55,6 +55,14 @@ export function playerId(): string {
   return id;
 }
 
+// Also named for the golf game; one name for every game, so nobody retypes it.
+const NAME_KEY = "ryanbday.name";
+
+/** The name this browser last posted under, or "" for none. */
+export const savedName = (): string => store.get(NAME_KEY, "");
+
+export const rememberName = (name: string): void => store.set(NAME_KEY, name);
+
 /** Network failure or a server-side fault: worth falling back for. */
 class Unavailable extends Error {}
 

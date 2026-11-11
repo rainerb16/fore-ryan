@@ -2,8 +2,7 @@
 // screens.ts decides what is on show, so the two do not import each other.
 
 import { cleanName } from "../../../../shared/names";
-import { getLeaderboard, submitRun, type LeaderboardEntry } from "../../../../shared/scores";
-import { store } from "../../../../shared/storage";
+import { getLeaderboard, rememberName, savedName, submitRun, type LeaderboardEntry } from "../../../../shared/scores";
 import { GAME_ID } from "../game/config";
 import type { RunSummary } from "../../rules/types";
 import {
@@ -17,7 +16,6 @@ import {
 import { row } from "./elements";
 import { formatDuration, formatPoints } from "./format";
 
-const NAME_KEY = "ryanbday.name";
 /** The standings screen's length, as the API served it before the arcade. */
 const BOARD_LIMIT = 25;
 
@@ -40,7 +38,7 @@ export function armSubmission(summary: RunSummary, token: string | null): void {
   pending = { summary, token };
   posting = false;
 
-  nameInput.value = store.get(NAME_KEY, "");
+  nameInput.value = savedName();
   submitForm.hidden = false;
   submitBtn.disabled = false;
 
@@ -82,7 +80,7 @@ async function post(event: Event): Promise<void> {
     return;
   }
 
-  store.set(NAME_KEY, displayName); // so a second run is not a retype
+  rememberName(displayName); // so a second run is not a retype
 
   submitForm.hidden = true;
   pending = null;

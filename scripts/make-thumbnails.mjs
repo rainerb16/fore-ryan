@@ -2,6 +2,7 @@
 //
 //   npm run build && npx vite preview --port 4199     (leave it running)
 //   CHROME="C:/Program Files/Google/Chrome/Application/chrome.exe" npm run thumbs
+//   ... npm run thumbs -- christmas-2026      (just the games named)
 //
 // Drives headless Chrome over the DevTools protocol: opens each game, plays a
 // few seconds of it, and saves a 4:3 screenshot to public/assets/thumbs/.
@@ -24,7 +25,15 @@ const SHOTS = {
     { key: " " }, // hold fire
     { wait: 2600 },
   ],
+  "christmas-2026": [
+    { eval: "document.getElementById('startBtn').click()" },
+    // Just the scene: no callouts or HUD over it.
+    { eval: "document.getElementById('ui').style.visibility = 'hidden'" },
+    { key: " " }, // push off
+    { wait: 2400 }, // on the inrun, the city and the Calgary Tower behind
+  ],
 };
+const only = process.argv.slice(2);
 
 if (!CHROME) {
   console.error("Set CHROME to the path of a Chrome or Edge executable.");
@@ -35,6 +44,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const browser = spawn(CHROME, [
   "--headless=new",
+  "--enable-unsafe-swiftshader", // WebGL in headless mode, for the 3D games
   `--remote-debugging-port=${PORT}`,
   `--user-data-dir=${mkdtempSync(join(tmpdir(), "thumbs-"))}`,
   "--window-size=800,600",
@@ -71,8 +81,9 @@ try {
 
   await send("Page.enable");
   for (const [game, steps] of Object.entries(SHOTS)) {
+    if (only.length && !only.includes(game)) continue;
     await send("Page.navigate", { url: `${BASE}/games/${game}/` });
-    await sleep(1500);
+    await sleep(4000); // long enough for a 3D scene to build
     for (const step of steps) {
       if (step.eval) await send("Runtime.evaluate", { expression: step.eval });
       if (step.key) await send("Input.dispatchKeyEvent", { type: "keyDown", key: step.key, code: "Space", windowsVirtualKeyCode: 32 });

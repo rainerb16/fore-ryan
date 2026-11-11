@@ -48,18 +48,41 @@
     </ol>
     <button class="big" id="startBtn" type="button">Tap to start</button>
     <p class="sub" id="bestLine"></p>
+    <button class="link" id="startBoardBtn" type="button">See the podium 🏆</button>
   </div>
 
   <div class="overlay" id="resultScreen" hidden>
     <h2 id="resultTitle"></h2>
     <p class="big-number" id="resultDistance"></p>
     <p class="sub" id="resultDetail"></p>
-    <button class="big" id="againBtn" type="button">Jump again</button>
+    <form class="post" id="postForm" hidden>
+      <label for="nameInput">Your first name for the podium</label>
+      <div class="post-row">
+        <input id="nameInput" name="name" type="text" maxlength="20" autocomplete="given-name" enterkeyhint="send" required>
+        <button class="big" id="postBtn" type="submit">Post</button>
+      </div>
+    </form>
+    <p class="sub" id="postStatus" aria-live="polite"></p>
+    <div class="actions">
+      <button class="big" id="againBtn" type="button">Jump again</button>
+      <button class="link" id="resultBoardBtn" type="button">See the podium 🏆</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="podiumScreen" hidden>
+    <p class="greeting">Happy Holidays from <img src="/assets/af/af-logo.png" alt="Action Furnace" width="1050" height="740"></p>
+    <ol class="podium" id="podium" aria-label="Top three"></ol>
+    <ol class="board" id="boardList" start="4"></ol>
+    <p class="sub" id="boardStatus" aria-live="polite"></p>
+    <div class="actions">
+      <button class="big" id="podiumAgainBtn" type="button">Jump again</button>
+    </div>
   </div>
 
   <div class="overlay" id="noWebgl" hidden>
     <h2>This one needs 3D</h2>
     <p>Your browser can't show WebGL graphics, so the ski jump can't run here. Try it on another browser or device.</p>
+    <button class="link" id="noWebglBoardBtn" type="button">See the podium 🏆</button>
   </div>
 </div>
 
