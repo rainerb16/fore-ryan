@@ -2,7 +2,7 @@ import "./styles.css";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
 import { distanceAt, newJump, step, timeScale, type Jump } from "../rules";
-import { attachInput, readInput, resetInput } from "./input";
+import { attachInput, readInput, readLook, resetInput } from "./input";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -135,7 +135,7 @@ async function boot(): Promise<void> {
         : jump.distance !== null ? metres(jump.distance) : "";
     }
 
-    view.render(jump, dt, prev, playing ? acc / STEP : 1);
+    view.render(jump, dt, prev, playing ? acc / STEP : 1, readLook());
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

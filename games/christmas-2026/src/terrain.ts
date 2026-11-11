@@ -79,14 +79,15 @@ export function groundY(x: number, z: number): number {
   return core * blend + hills * (1 - blend);
 }
 
-const GROUND = { width: 2600, depth: 1500 };
+/** Out past downtown, so the city's hills have ground under them. */
+const GROUND = { width: 2600, depth: 2300 };
 
 function ground(lowPower: boolean): Mesh {
   // Fine enough that slopes read as smooth drifts rather than facets.
-  const segs = lowPower ? [140, 90] : [320, 190];
+  const segs = lowPower ? [140, 120] : [320, 270];
   const geometry = new PlaneGeometry(GROUND.width, GROUND.depth, segs[0], segs[1]);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate(350, 0, -620);
+  geometry.translate(350, 0, -1020);
   const pos = geometry.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const snow = new Color("#e6edfb");
