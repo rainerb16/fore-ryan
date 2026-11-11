@@ -18,7 +18,7 @@ import {
 } from "three";
 
 /** Nudges every vertex in or out a little, deterministically, so fur reads as fluffy. */
-function fluff<G extends BufferGeometry>(geometry: G, amount: number): G {
+export function fluff<G extends BufferGeometry>(geometry: G, amount: number): G {
   const pos = geometry.attributes.position;
   const v = new Vector3();
   for (let i = 0; i < pos.count; i++) {

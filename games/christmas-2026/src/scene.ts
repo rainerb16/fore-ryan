@@ -5,7 +5,7 @@
 import { DirectionalLight, Fog, HemisphereLight, MathUtils, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createBloom, createView, isLowPower } from "../../../shared/three";
 import { hillY, inrunPosition, PHYSICS, type Jump } from "../rules";
-import { buildRyan } from "./ryan";
+import { buildRyan, type Stance } from "./ryan";
 import { buildSleigh, presentSpill } from "./sleigh";
 import { buildStructures } from "./structure";
 import { buildTerrain, groundY } from "./terrain";
@@ -37,6 +37,15 @@ function poseOf(j: Jump): { x: number; y: number; angle: number } {
   return { x: j.x, y: j.y, angle: Math.atan2(hillY(j.x + 0.5) - hillY(j.x - 0.5), 1) };
 }
 
+/** Simulation seconds Ryan holds the telemark after touching down. */
+const TELEMARK_FOR = 1.2;
+
+function stanceOf(j: Jump): Stance {
+  if (j.phase === "ready" || j.phase === "inrun") return j.phase;
+  if (j.phase === "flight") return j.holding ? "glide" : "flight";
+  return j.time - j.landedTime < TELEMARK_FOR ? "landing" : "outrun";
+}
+
 export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageElement | null): JumpView {
   const scene = new Scene();
   scene.fog = new Fog(HAZE, 120, 760);
@@ -53,7 +62,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   const world = buildWorld(scene, lowPower);
   const ryan = buildRyan(headImage);
   const jumper = ryan.group;
-  scene.add(jumper);
+  scene.add(jumper, ryan.looseSkis);
   const sleigh = buildSleigh();
   scene.add(sleigh);
   const spill = presentSpill(scene);
@@ -85,22 +94,14 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
         angle = MathUtils.lerp(p.angle, angle, blend);
       }
       jumper.position.set(x, y, 0);
-      // Crouched on the inrun, flat in a glide, upright once landed.
-      const pose = j.phase === "inrun" ? -0.7 : j.holding ? -1.15 : j.phase === "flight" ? -0.45 : -0.15;
-      ryan.lean.rotation.z = MathUtils.damp(ryan.lean.rotation.z, pose, 8, dt);
-
-      if (j.crashed) {
-        // Tumble end over end, and the sack bursts.
-        if (!spilled) {
-          spilled = true;
-          ryan.sack.visible = false;
-          spill.start(x, y, Math.hypot(j.vx, j.vy));
-        }
-        jumper.rotation.z -= dt * 7 * Math.max(0.15, j.speed / 25);
-        jumper.position.y += 0.8; // tumbling above the snow, not through it
-      } else {
-        jumper.rotation.z = MathUtils.damp(jumper.rotation.z, angle, 10, dt);
+      jumper.rotation.z = MathUtils.damp(jumper.rotation.z, angle, 10, dt);
+      if (j.crashed && !spilled) {
+        // The sack bursts as he goes down.
+        spilled = true;
+        ryan.sack.visible = false;
+        spill.start(x, y, Math.hypot(j.vx, j.vy));
       }
+      ryan.animate(stanceOf(j), j.crashed, j.speed, dt);
       spill.update(dt);
 
       // Santa crosses the sky behind the take-off.
@@ -162,6 +163,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
       spilled = false;
       spill.clear();
       ryan.sack.visible = true;
+      ryan.reset();
       jumper.rotation.set(0, 0, 0);
       sleigh.visible = false;
     },
