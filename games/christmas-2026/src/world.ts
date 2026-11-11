@@ -10,7 +10,6 @@ import {
   BufferGeometry,
   CanvasTexture,
   Color,
-  ConeGeometry,
   CylinderGeometry,
   Group,
   InstancedMesh,
@@ -32,7 +31,7 @@ import {
   type Scene,
   type Vector3,
 } from "three";
-import { hillY, inrunPoints, LANDING, xAtDistance } from "../rules";
+import { hillY, xAtDistance } from "../rules";
 
 /** Seeded, so the skyline and forest are the same every visit. */
 function seeded(seed: number): () => number {
@@ -55,8 +54,6 @@ function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2
   return texture;
 }
 
-/** Ground level on the landing side of the scene. */
-const groundY = (x: number): number => hillY(Math.min(x, LANDING.end));
 
 // --- sky ------------------------------------------------------------------------
 
@@ -265,53 +262,7 @@ function calgaryTower(scene: Scene, x: number, base: number, z: number): Twinkle
   };
 }
 
-// --- the hill's surroundings -------------------------------------------------------
-
-function pines(scene: Scene): void {
-  const rand = seeded(91);
-  const spots: Array<[number, number, number]> = [];
-  // Behind the hill, along the landing and run-out, and scattered further back.
-  for (let i = 0; i < 260; i++) {
-    const x = 12 + rand() * 340;
-    const z = -10 - Math.pow(rand(), 1.4) * 120;
-    spots.push([x, groundY(x), z]);
-  }
-  const s = new InstancedMesh(new ConeGeometry(2.6, 9, 7), new MeshStandardMaterial({ color: "#16351f", roughness: 1 }), spots.length);
-  const snowCap = new InstancedMesh(new ConeGeometry(1.7, 3.5, 7), new MeshStandardMaterial({ color: "#c9d6ee", roughness: 1 }), spots.length);
-  const dummy = new Object3D();
-  spots.forEach(([x, y, z], i) => {
-    const k = 0.7 + rand() * 0.9;
-    dummy.position.set(x, y + 4.5 * k, z);
-    dummy.scale.setScalar(k);
-    dummy.updateMatrix();
-    s.setMatrixAt(i, dummy.matrix);
-    dummy.position.y = y + 8 * k;
-    dummy.updateMatrix();
-    snowCap.setMatrixAt(i, dummy.matrix);
-  });
-  scene.add(s, snowCap);
-}
-
-/** Warm lamps lining both sides of the inrun. */
-function inrunLamps(scene: Scene): void {
-  const pts = inrunPoints(7);
-  const lamps = new InstancedMesh(new SphereGeometry(0.28, 8, 6), new MeshBasicMaterial({ color: "#ffd9a0" }), pts.length * 2);
-  const posts = new InstancedMesh(new CylinderGeometry(0.06, 0.06, 1.6, 5), new MeshStandardMaterial({ color: "#30333f" }), pts.length * 2);
-  const dummy = new Object3D();
-  let i = 0;
-  for (const [x, y] of pts) {
-    for (const z of [-5.6, 5.6]) {
-      dummy.position.set(x, y + 0.8, z);
-      dummy.updateMatrix();
-      posts.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(x, y + 1.7, z);
-      dummy.updateMatrix();
-      lamps.setMatrixAt(i, dummy.matrix);
-      i++;
-    }
-  }
-  scene.add(lamps, posts);
-}
+// --- the landing hill ---------------------------------------------------------------
 
 /** Candy canes every 10 m down the landing hill, with the distance every 20 m. */
 function candyCanes(scene: Scene): void {
@@ -413,7 +364,9 @@ function snowfall(scene: Scene, count: number): Snowfall {
         pos[i * 3] += Math.sin(t * 0.8 + drift[i]) * 0.3 * dt;
       }
       geometry.attributes.position.needsUpdate = true;
-      points.position.set(around.x, around.y, around.z - 20);
+      // The box sits wholly in front of the camera (from 5 m out): a flake right at the
+      // lens would be drawn huge and, being additive, wash out the whole screen.
+      points.position.set(around.x, around.y, around.z - 5 - box.z / 2);
     },
   };
 }
@@ -427,8 +380,6 @@ export function buildWorld(scene: Scene, lowPower: boolean): World {
   sky(scene);
   rockies(scene);
   const tower = skyline(scene);
-  pines(scene);
-  inrunLamps(scene);
   candyCanes(scene);
   return { snow: snowfall(scene, lowPower ? 700 : 1500), tower };
 }

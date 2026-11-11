@@ -1,80 +1,31 @@
 // The 3D view of the jump. Simulation x/y map straight onto world x/y (metres,
-// lip at the origin, downhill to +x); the hill is extruded along z, and the
+// lip at the origin, downhill to +x); the track runs along z = 0, and the
 // camera watches from the +z side.
 
-import {
-  BoxGeometry,
-  DirectionalLight,
-  ExtrudeGeometry,
-  Fog,
-  Group,
-  HemisphereLight,
-  MathUtils,
-  Mesh,
-  MeshStandardMaterial,
-  PerspectiveCamera,
-  Scene,
-  Shape,
-  SphereGeometry,
-  Vector3,
-} from "three";
+import { DirectionalLight, Fog, HemisphereLight, MathUtils, PerspectiveCamera, Scene, Vector3 } from "three";
 import { createBloom, createView, isLowPower } from "../../../shared/three";
-import { hillY, inrunPoints, inrunPosition, LANDING, type Jump } from "../rules";
+import { hillY, inrunPosition, PHYSICS, type Jump } from "../rules";
+import { buildRyan } from "./ryan";
+import { buildSleigh, presentSpill } from "./sleigh";
+import { buildStructures } from "./structure";
+import { buildTerrain, groundY } from "./terrain";
 import { buildWorld } from "./world";
 
-/** The hillside runs back from the track (z = -6..6) so trees have ground to stand on. */
-const HILL_FRONT = 6;
-const HILL_BACK = -170;
-const NIGHT = "#0a1534";
-
-function buildHill(): Mesh {
-  const shape = new Shape();
-  const top = inrunPoints(2);
-  const base = -LANDING.end;
-  shape.moveTo(top[0][0], base);
-  for (const [x, y] of top) shape.lineTo(x, y);
-  // The table ends at the lip; the landing hill starts a few metres below it.
-  for (let x = 0; x <= LANDING.end; x += 2) shape.lineTo(x, hillY(x));
-  shape.lineTo(LANDING.end + 80, hillY(LANDING.end));
-  shape.lineTo(LANDING.end + 80, base);
-  shape.closePath();
-
-  const geometry = new ExtrudeGeometry(shape, { depth: HILL_FRONT - HILL_BACK, bevelEnabled: false, curveSegments: 1 });
-  geometry.translate(0, 0, HILL_BACK);
-  const hill = new Mesh(geometry, new MeshStandardMaterial({ color: "#dfe7fa", roughness: 0.95 }));
-  hill.receiveShadow = true;
-  return hill;
-}
-
-/** A stand-in jumper: body, head, and a pair of skis, pivoting at the boots. */
-function buildJumper(): Group {
-  const jumper = new Group();
-  const suit = new MeshStandardMaterial({ color: "#c8102e", roughness: 0.6 });
-  const body = new Mesh(new BoxGeometry(0.45, 1.3, 0.4), suit);
-  body.position.y = 0.75;
-  const head = new Mesh(new SphereGeometry(0.22, 16, 12), new MeshStandardMaterial({ color: "#f1c7a8" }));
-  head.position.y = 1.6;
-  const lean = new Group(); // tips forward when gliding
-  lean.name = "lean";
-  lean.add(body, head);
-  const skiMaterial = new MeshStandardMaterial({ color: "#1b1b24", roughness: 0.4 });
-  for (const z of [-0.14, 0.14]) {
-    const ski = new Mesh(new BoxGeometry(2.4, 0.05, 0.1), skiMaterial);
-    ski.position.set(0.3, 0.02, z);
-    jumper.add(ski);
-  }
-  jumper.add(lean);
-  jumper.traverse((n) => (n.castShadow = true));
-  return jumper;
-}
+/** Matches the sky at the horizon, so distant hills fade into it rather than into a band. */
+const HAZE = "#17234a";
 
 export interface JumpView {
   render(j: Jump, dt: number): void;
+  /** Put everything back for a fresh jump. */
+  reset(): void;
 }
 
-export function createJumpView(canvas: HTMLCanvasElement): JumpView {
+/** How long, in simulation seconds after take-off, the sleigh takes to cross. */
+const SLEIGH_CROSSING = 2.2;
+
+export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageElement | null): JumpView {
   const scene = new Scene();
-  scene.fog = new Fog(NIGHT, 80, 420);
+  scene.fog = new Fog(HAZE, 120, 760);
   const lowPower = isLowPower();
 
   // Moonlit snow: cool blue ambient, a soft moon from behind the left shoulder.
@@ -83,11 +34,16 @@ export function createJumpView(canvas: HTMLCanvasElement): JumpView {
   moon.position.set(-60, 120, 80);
   scene.add(moon);
 
-  scene.add(buildHill());
+  buildTerrain(scene, lowPower);
+  buildStructures(scene);
   const world = buildWorld(scene, lowPower);
-  const jumper = buildJumper();
-  const lean = jumper.getObjectByName("lean")!;
+  const ryan = buildRyan(headImage);
+  const jumper = ryan.group;
   scene.add(jumper);
+  const sleigh = buildSleigh();
+  scene.add(sleigh);
+  const spill = presentSpill(scene);
+  let spilled = false;
 
   const camera = new PerspectiveCamera(50, 1, 0.5, 3000);
   const renderer = createView(canvas, camera, (w, h) => bloom.resize(w, h));
@@ -99,6 +55,9 @@ export function createJumpView(canvas: HTMLCanvasElement): JumpView {
   const camLook = new Vector3();
   const wantPos = new Vector3();
   const wantLook = new Vector3();
+  const forward = new Vector3();
+  const right = new Vector3();
+  const up = new Vector3();
   let first = true;
 
   return {
@@ -122,32 +81,84 @@ export function createJumpView(canvas: HTMLCanvasElement): JumpView {
         angle = Math.atan2(hillY(x + 0.5) - hillY(x - 0.5), 1);
       }
       jumper.position.set(x, y, 0);
-      jumper.rotation.z = MathUtils.damp(jumper.rotation.z, angle, 10, dt);
-      lean.rotation.z = MathUtils.damp(lean.rotation.z, j.holding ? -1.1 : -0.25, 8, dt);
-      // A crash tumbles the jumper over.
-      jumper.rotation.x = j.crashed ? MathUtils.damp(jumper.rotation.x, Math.PI / 2, 4, dt) : 0;
+      // Crouched on the inrun, flat in a glide, upright once landed.
+      const pose = j.phase === "inrun" ? -0.7 : j.holding ? -1.15 : j.phase === "flight" ? -0.45 : -0.15;
+      ryan.lean.rotation.z = MathUtils.damp(ryan.lean.rotation.z, pose, 8, dt);
+
+      if (j.crashed) {
+        // Tumble end over end, and the sack bursts.
+        if (!spilled) {
+          spilled = true;
+          ryan.sack.visible = false;
+          spill.start(x, y, Math.hypot(j.vx, j.vy));
+        }
+        jumper.rotation.z -= dt * 7 * Math.max(0.15, j.speed / 25);
+        jumper.position.y += 0.8; // tumbling above the snow, not through it
+      } else {
+        jumper.rotation.z = MathUtils.damp(jumper.rotation.z, angle, 10, dt);
+      }
+      spill.update(dt);
+
+      // Santa crosses the sky behind the take-off.
+      const sinceTakeoff = j.phase === "flight" || j.phase === "outrun" ? j.time - j.takeoffTime : -1;
 
       // Side-follow: close on the inrun, pulled back in the air to show the landing.
       const flying = j.phase === "flight" || j.phase === "outrun" || j.phase === "done";
-      wantPos.set(x + (flying ? 9 : 4), y + (flying ? 4 : 3), flying ? 24 : 16);
-      wantLook.set(x + (flying ? 14 : 6), y - (flying ? 6 : 1), 0);
+      const sweep = j.phase === "flight" ? Math.min(1, sinceTakeoff / PHYSICS.slowmoFor) : 1;
+      if (sweep < 1) {
+        // The slow-motion moment: swing round in front of Ryan as he leaves the lip.
+        const around = Math.sin(sweep * Math.PI) * 1.1;
+        wantPos.set(x + Math.sin(around) * 8, y + 1.5, Math.cos(around) * 8);
+        wantLook.set(x, y + 1, 0);
+      } else if (j.phase === "outrun" || j.phase === "done") {
+        // Landed (or crashed): settle in close on Ryan as he slides to a stop.
+        wantPos.set(x + 4, y + 3.5, 13);
+        wantLook.set(x + 1, y + 0.6, 0);
+      } else {
+        wantPos.set(x + (flying ? 9 : 4), y + (flying ? 4 : 3), flying ? 24 : 16);
+        wantLook.set(x + (flying ? 14 : 6), y - (flying ? 6 : 1), 0);
+      }
       if (first) {
         camPos.copy(wantPos);
         camLook.copy(wantLook);
         first = false;
       }
-      camPos.x = MathUtils.damp(camPos.x, wantPos.x, 5, dt);
-      camPos.y = MathUtils.damp(camPos.y, wantPos.y, 5, dt);
-      camPos.z = MathUtils.damp(camPos.z, wantPos.z, 2, dt);
+      const follow = sweep < 1 ? 8 : 5;
+      camPos.x = MathUtils.damp(camPos.x, wantPos.x, follow, dt);
+      camPos.y = MathUtils.damp(camPos.y, wantPos.y, follow, dt);
+      camPos.z = MathUtils.damp(camPos.z, wantPos.z, sweep < 1 ? 8 : 2, dt);
       camLook.x = MathUtils.damp(camLook.x, wantLook.x, 6, dt);
       camLook.y = MathUtils.damp(camLook.y, wantLook.y, 6, dt);
+      // Never below the snow.
+      camPos.y = Math.max(camPos.y, groundY(camPos.x, camPos.z) + 2.5);
       camera.position.copy(camPos);
       camera.lookAt(camLook);
+
+      // Santa crosses the sky in the upper part of whatever the camera is looking at.
+      const q = sinceTakeoff / SLEIGH_CROSSING;
+      sleigh.visible = q > 0 && q < 1;
+      if (sleigh.visible) {
+        camera.getWorldDirection(forward);
+        right.crossVectors(forward, camera.up).normalize();
+        sleigh.position
+          .copy(camPos)
+          .addScaledVector(forward, 240)
+          .addScaledVector(right, -170 + 340 * q)
+          .add(up.set(0, 55 + Math.sin(q * 6) * 4, 0));
+        sleigh.rotation.y = Math.atan2(-right.z, right.x);
+      }
 
       time += dt;
       world.snow.update(camPos, dt);
       world.tower.update(time);
       bloom.render();
+    },
+    reset() {
+      spilled = false;
+      spill.clear();
+      ryan.sack.visible = true;
+      jumper.rotation.set(0, 0, 0);
+      sleigh.visible = false;
     },
   };
 }

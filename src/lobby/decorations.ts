@@ -4,10 +4,7 @@
 
 import {
   BoxGeometry,
-  type BufferGeometry,
   CatmullRomCurve3,
-  IcosahedronGeometry,
-  MeshPhysicalMaterial,
   ConeGeometry,
   DoubleSide,
   Group,
@@ -24,6 +21,7 @@ import {
   type Material,
 } from "three";
 import type { GameEntry } from "../../shared/games";
+import { santaHat } from "../../shared/santa-hat";
 import { paint } from "./textures";
 
 const TOP = 1.92;
@@ -66,74 +64,13 @@ function partyHat(body: Material, tip: Material, x: number, tilt: number): Group
   return g;
 }
 
-/** Nudges every vertex in or out a little, deterministically, so fur reads as fluffy. */
-function fluff<G extends BufferGeometry>(geometry: G, amount: number): G {
-  const pos = geometry.attributes.position;
-  const v = new Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    const n = Math.sin(v.x * 91 + v.y * 57) * Math.cos(v.z * 73 - v.x * 31);
-    v.multiplyScalar(1 + n * amount);
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-/**
- * A Santa hat in soft fabric: it rises from a fur brim, then flops over to one
- * side with the pompom hanging. Built as a tube along that bent path whose
- * radius tapers to the tip, with gentle bulges and creases for the folds.
- */
-function santaHat(x: number): Group {
-  const path = new CatmullRomCurve3([
-    new Vector3(0, 0, 0),
-    new Vector3(0, 0.09, 0),
-    new Vector3(0.02, 0.17, 0.01),
-    new Vector3(0.09, 0.22, 0.02),
-    new Vector3(0.16, 0.19, 0.03),
-    new Vector3(0.2, 0.12, 0.03),
-  ]);
-  const rings = 40;
-  const sides = 20;
-  const body = new TubeGeometry(path, rings, 1, sides, false);
-
-  // TubeGeometry lays vertices out ring by ring; reshape each ring around its centre.
-  const pos = body.attributes.position;
-  const centre = new Vector3();
-  const v = new Vector3();
-  for (let ring = 0; ring <= rings; ring++) {
-    const t = ring / rings;
-    path.getPointAt(t, centre);
-    const taper = 0.12 * Math.pow(1 - t, 0.85) + 0.012;
-    for (let side = 0; side <= sides; side++) {
-      const i = ring * (sides + 1) + side;
-      const angle = (side / sides) * Math.PI * 2;
-      const folds = 1 + 0.07 * Math.sin(t * 13) + 0.05 * Math.sin(angle * 3 + t * 7);
-      v.fromBufferAttribute(pos, i).sub(centre).normalize().multiplyScalar(taper * folds).add(centre);
-      pos.setXYZ(i, v.x, v.y, v.z);
-    }
-  }
-  body.computeVertexNormals();
-
-  const velvet = new MeshPhysicalMaterial({
-    color: "#9e0f26",
-    roughness: 0.85,
-    sheen: 1,
-    sheenRoughness: 0.4,
-    sheenColor: "#ff5a6e",
-  });
+/** The shared Santa hat, perched on the cabinet top. */
+function cabinetSantaHat(x: number): Group {
   // Fur stays grey-white: pure white glows under the ceiling spotlight.
-  const fur = new MeshStandardMaterial({ color: "#9c9c9c", roughness: 1 });
-
-  const g = new Group();
-  g.add(mesh(body, velvet, 0, 0, 0));
-  g.add(mesh(fluff(new TorusGeometry(0.122, 0.038, 12, 36).rotateX(Math.PI / 2), 0.05), fur, 0, 0.01, 0));
-  const tip = path.getPointAt(1);
-  g.add(mesh(fluff(new IcosahedronGeometry(0.04, 2), 0.12), fur, tip.x, tip.y - 0.03, tip.z));
-  g.position.set(x, TOP + 0.03, -0.12);
-  g.rotation.y = 0.3; // flop to the side, angled slightly back, so its silhouette reads from the front
-  return g;
+  const hat = santaHat("#9c9c9c");
+  hat.position.set(x, TOP + 0.03, -0.12);
+  hat.rotation.y = 0.3; // flop to the side, angled slightly back, so its silhouette reads from the front
+  return hat;
 }
 
 /** A wrapped box with a ribbon cross, sitting on the floor. */
@@ -221,7 +158,7 @@ function birthday(cabinet: Group): Animate {
 function christmas(cabinet: Group): Animate {
   // No snow on top: the ceiling spotlight shines straight down on it, and any
   // pale surface there glows like a lamp. Whites are kept grey for the same reason.
-  cabinet.add(santaHat(0.02));
+  cabinet.add(cabinetSantaHat(0.02));
 
   // A garland along the marquee's top edge, clear of the title, hung with baubles.
   const needles = new MeshStandardMaterial({ color: "#1f5a32", roughness: 0.9 });

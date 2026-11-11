@@ -7,6 +7,16 @@ import { attachInput, readInput, resetInput } from "./input";
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 const BEST_KEY = "skijump.best";
+const HEAD_SRC = "/assets/ryan/ryan-head-floating.png";
+
+function loadImage(src: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
 /** The simulation always steps at this rate, whatever the display does. */
 const STEP = 1 / 120;
 
@@ -41,8 +51,8 @@ async function boot(): Promise<void> {
     return;
   }
 
-  const { createJumpView } = await import("./scene");
-  const view = createJumpView($<HTMLCanvasElement>("scene"));
+  const [{ createJumpView }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
+  const view = createJumpView($<HTMLCanvasElement>("scene"), head);
   attachInput();
 
   let jump: Jump = newJump();
@@ -52,6 +62,7 @@ async function boot(): Promise<void> {
 
   function start(): void {
     jump = newJump();
+    view.reset();
     lastPhase = jump.phase;
     acc = 0;
     resetInput();
