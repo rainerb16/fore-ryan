@@ -56,12 +56,15 @@ async function boot(): Promise<void> {
   attachInput();
 
   let jump: Jump = newJump();
+  /** The state one step back, so the view can draw between the two. */
+  const prev: Jump = newJump();
   let playing = false;
   let lastPhase = jump.phase;
   let acc = 0;
 
   function start(): void {
     jump = newJump();
+    Object.assign(prev, jump);
     view.reset();
     lastPhase = jump.phase;
     acc = 0;
@@ -118,6 +121,7 @@ async function boot(): Promise<void> {
       // feeds the simulation less time per real second.
       acc += dt * timeScale(jump);
       while (acc >= STEP) {
+        Object.assign(prev, jump);
         step(jump, readInput(), STEP);
         acc -= STEP;
         if (jump.phase !== lastPhase) {
@@ -131,7 +135,7 @@ async function boot(): Promise<void> {
         : jump.distance !== null ? metres(jump.distance) : "";
     }
 
-    view.render(jump, dt);
+    view.render(jump, dt, prev, playing ? acc / STEP : 1);
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

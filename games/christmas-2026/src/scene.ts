@@ -15,13 +15,27 @@ import { buildWorld } from "./world";
 const HAZE = "#17234a";
 
 export interface JumpView {
-  render(j: Jump, dt: number): void;
+  /**
+   * Draws the jump `blend` of the way from `prev` (the state one simulation
+   * step earlier) to `j`, so motion stays smooth whatever the display rate.
+   */
+  render(j: Jump, dt: number, prev: Jump, blend: number): void;
   /** Put everything back for a fresh jump. */
   reset(): void;
 }
 
 /** How long, in simulation seconds after take-off, the sleigh takes to cross. */
 const SLEIGH_CROSSING = 2.2;
+
+/** Where the jumper is, and which way the skis point. */
+function poseOf(j: Jump): { x: number; y: number; angle: number } {
+  if (j.phase === "ready" || j.phase === "inrun") {
+    const p = inrunPosition(j.s);
+    return { x: p.x, y: p.y, angle: -p.angle };
+  }
+  if (j.phase === "flight") return { x: j.x, y: j.y, angle: Math.atan2(j.vy, j.vx) * 0.6 };
+  return { x: j.x, y: j.y, angle: Math.atan2(hillY(j.x + 0.5) - hillY(j.x - 0.5), 1) };
+}
 
 export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageElement | null): JumpView {
   const scene = new Scene();
@@ -61,24 +75,14 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   let first = true;
 
   return {
-    render(j, dt) {
-      // Where the jumper is, and which way the skis point.
-      let x: number;
-      let y: number;
-      let angle: number;
-      if (j.phase === "ready" || j.phase === "inrun") {
-        const p = inrunPosition(j.s);
-        x = p.x;
-        y = p.y;
-        angle = -p.angle;
-      } else if (j.phase === "flight") {
-        x = j.x;
-        y = j.y;
-        angle = Math.atan2(j.vy, j.vx) * 0.6;
-      } else {
-        x = j.x;
-        y = j.y;
-        angle = Math.atan2(hillY(x + 0.5) - hillY(x - 0.5), 1);
+    render(j, dt, prev, blend) {
+      let { x, y, angle } = poseOf(j);
+      if (prev.phase === j.phase) {
+        // Between two steps of the same phase, draw the in-between position.
+        const p = poseOf(prev);
+        x = MathUtils.lerp(p.x, x, blend);
+        y = MathUtils.lerp(p.y, y, blend);
+        angle = MathUtils.lerp(p.angle, angle, blend);
       }
       jumper.position.set(x, y, 0);
       // Crouched on the inrun, flat in a glide, upright once landed.
@@ -133,6 +137,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
       camPos.y = Math.max(camPos.y, groundY(camPos.x, camPos.z) + 2.5);
       camera.position.copy(camPos);
       camera.lookAt(camLook);
+      ryan.faceCamera(camera, j.crashed);
 
       // Santa crosses the sky in the upper part of whatever the camera is looking at.
       const q = sinceTakeoff / SLEIGH_CROSSING;
