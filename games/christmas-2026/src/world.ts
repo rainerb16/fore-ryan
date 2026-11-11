@@ -32,16 +32,9 @@ import {
   type Vector3,
 } from "three";
 import { hillY, xAtDistance } from "../rules";
+import { glowing } from "./glow";
+import { seeded } from "./random";
 
-/** Seeded, so the skyline and forest are the same every visit. */
-function seeded(seed: number): () => number {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 function canvasTexture(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): CanvasTexture {
   const canvas = document.createElement("canvas");
@@ -91,7 +84,7 @@ function sky(scene: Scene): void {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
   });
-  const moon = new Sprite(new SpriteMaterial({ map: glow, fog: false, depthWrite: false }));
+  const moon = new Sprite(new SpriteMaterial({ map: glow, color: glowing("#ffffff", 1.6), fog: false, depthWrite: false }));
   moon.position.set(-250, 420, -1100);
   moon.scale.setScalar(180);
   scene.add(moon);
@@ -109,11 +102,19 @@ function rockies(scene: Scene): void {
   const H = 512;
   const map = canvasTexture(W, H, (ctx) => {
     const layer = (seed: number, top: number, depth: number, rock: [string, string], snow: string): void => {
+      // A smooth ridgeline: layered noise, broad ranges with smaller peaks on top,
+      // sampled finely so slopes curve instead of zig-zagging.
       const rand = seeded(seed);
+      const lattice = Array.from({ length: 64 }, () => rand());
+      const smooth = (x: number): number => {
+        const i = Math.floor(x);
+        const f = x - i;
+        const t = f * f * (3 - 2 * f);
+        return lattice[i % 64] + (lattice[(i + 1) % 64] - lattice[i % 64]) * t;
+      };
       const pts: Array<[number, number]> = [];
-      let h = 0.5;
-      for (let x = 0; x <= W + 60; x += 30 + rand() * 50) {
-        h = Math.min(1, Math.max(0.15, h + (rand() - 0.5) * 0.6));
+      for (let x = 0; x <= W; x += 4) {
+        const h = smooth(x / 260) * 0.55 + smooth(x / 95 + 7) * 0.3 + smooth(x / 33 + 13) * 0.15;
         pts.push([x, top + (1 - h) * depth]);
       }
       const outline = (): void => {
@@ -189,7 +190,7 @@ function skyline(scene: Scene): Twinkle {
     map.offset.set(rand(), rand());
     const tower = new Mesh(
       new BoxGeometry(w, h, d),
-      new MeshStandardMaterial({ color: concrete, roughness: 0.9, emissive: "#ffffff", emissiveMap: map, emissiveIntensity: 0.55, fog: false }),
+      new MeshStandardMaterial({ color: concrete, roughness: 0.9, emissive: "#ffffff", emissiveMap: map, emissiveIntensity: 1.3, fog: false }),
     );
     tower.position.set(260 + i * 13 + rand() * 10, -230 + h / 2, -520 - rand() * 120);
     city.add(tower);
@@ -216,7 +217,7 @@ function calgaryTower(scene: Scene, x: number, base: number, z: number): Twinkle
   // A spiral of lights round the tower, widening to the base like a tree.
   const count = 260;
   const bulbs = new InstancedMesh(new SphereGeometry(1.5, 6, 4), new MeshBasicMaterial({ fog: false }), count);
-  const palette = ["#ff3b3b", "#3bff7a", "#ffd23b", "#3bb4ff", "#ff8cf0"].map((c) => new Color(c));
+  const palette = ["#ff3b3b", "#3bff7a", "#ffd23b", "#3bb4ff", "#ff8cf0"].map((c) => glowing(c, 3));
   const base_ = new Array<Color>(count);
   const dummy = new Object3D();
   for (let i = 0; i < count; i++) {
@@ -238,7 +239,7 @@ function calgaryTower(scene: Scene, x: number, base: number, z: number): Twinkle
     if (i === 0) star.moveTo(Math.cos(a) * r, Math.sin(a) * r);
     else star.lineTo(Math.cos(a) * r, Math.sin(a) * r);
   }
-  const starMesh = new Mesh(new ShapeGeometry(star), new MeshBasicMaterial({ color: "#ffe066", fog: false }));
+  const starMesh = new Mesh(new ShapeGeometry(star), new MeshBasicMaterial({ color: glowing("#ffe066", 3), fog: false }));
   starMesh.position.y = shaftH + 36;
   tower.add(starMesh);
 

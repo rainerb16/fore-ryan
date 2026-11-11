@@ -13,6 +13,7 @@ import {
   type Scene,
 } from "three";
 import { hillY } from "../rules";
+import { glowing } from "./glow";
 
 function block(w: number, h: number, d: number, material: Material, x: number, y: number, z = 0): Mesh {
   const m = new Mesh(new BoxGeometry(w, h, d), material);
@@ -49,7 +50,7 @@ export function buildSleigh(): Group {
     }
     deer.add(block(0.15, 1.2, 0.15, brown, 1.6, 2, 0.3), block(0.15, 1.2, 0.15, brown, 1.6, 2, -0.3)); // antlers
     if (i === 3) {
-      const nose = new Mesh(new SphereGeometry(0.4, 10, 8), new MeshBasicMaterial({ color: "#ff2030", fog: false }));
+      const nose = new Mesh(new SphereGeometry(0.4, 10, 8), new MeshBasicMaterial({ color: glowing("#ff2030", 3), fog: false }));
       nose.position.set(2.4, 0.9, 0);
       deer.add(nose);
     }

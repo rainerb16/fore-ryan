@@ -3,22 +3,10 @@
 // Along the track (|z| < 8) the ground is exactly the simulation's landing
 // profile; away from it, it blends into noise-driven hills.
 
-import {
-  BufferAttribute,
-  Color,
-  ConeGeometry,
-  CylinderGeometry,
-  ExtrudeGeometry,
-  InstancedMesh,
-  Matrix4,
-  Mesh,
-  MeshStandardMaterial,
-  Object3D,
-  PlaneGeometry,
-  Shape,
-  type Scene,
-} from "three";
+import { BufferAttribute, Color, MathUtils, Mesh, PlaneGeometry, type Scene } from "three";
 import { hillY, inrunPoints, LANDING } from "../rules";
+import { snowMaterial } from "./snow";
+import { plantForest, type TreeSpot } from "./trees";
 
 // --- noise ----------------------------------------------------------------------
 
@@ -68,7 +56,7 @@ const CORRIDOR = 24;
 /**
  * How far the ground sits below the landing surface in that strip. The ground
  * mesh is coarse (~13 m between points), and between points it cuts corners;
- * this margin keeps it from ever rising through the slab Ryan lands on.
+ * this margin keeps it from ever rising through the landing hill Ryan lands on.
  */
 const SINK = 1.2;
 
@@ -91,9 +79,12 @@ export function groundY(x: number, z: number): number {
   return core * blend + hills * (1 - blend);
 }
 
+const GROUND = { width: 2600, depth: 1500 };
+
 function ground(lowPower: boolean): Mesh {
-  const segs = lowPower ? [110, 70] : [200, 130];
-  const geometry = new PlaneGeometry(2600, 1500, segs[0], segs[1]);
+  // Fine enough that slopes read as smooth drifts rather than facets.
+  const segs = lowPower ? [140, 90] : [320, 190];
+  const geometry = new PlaneGeometry(GROUND.width, GROUND.depth, segs[0], segs[1]);
   geometry.rotateX(-Math.PI / 2);
   geometry.translate(350, 0, -620);
   const pos = geometry.attributes.position;
@@ -116,79 +107,81 @@ function ground(lowPower: boolean): Mesh {
   }
   geometry.setAttribute("color", new BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
-  const mesh = new Mesh(geometry, new MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+  const material = snowMaterial({ color: "#ffffff", vertexColors: true, tile: 4 }, [GROUND.width, GROUND.depth]);
+  const mesh = new Mesh(geometry, material);
   mesh.receiveShadow = true;
   return mesh;
 }
 
+/** Half-width of the landing hill's flat, groomed top. */
+const HILL_HALF_WIDTH = 8;
+/** Across the hill (metres from the centre line): the flat top, then rounded shoulders down into the snow. */
+const ACROSS = [-15, -13, -11.5, -10.2, -9.2, -8.5, -8, -6, -3, 0, 3, 6, 8, 8.5, 9.2, 10.2, 11.5, 13, 15];
+
+/** How far below the groomed top the hill's shoulder is, this far from the centre line. */
+function shoulder(z: number): number {
+  const t = MathUtils.clamp((Math.abs(z) - HILL_HALF_WIDTH) / 7, 0, 1);
+  return -3 * t * t * (3 - 2 * t);
+}
+
 /**
- * The groomed landing hill itself, a slab whose top is the exact profile the
- * simulation lands on, so Ryan touches down on the surface you see.
+ * The groomed landing hill itself: its top is the exact profile the simulation
+ * lands on, so Ryan touches down on the surface you see, and its sides round
+ * off into the surrounding snow rather than ending in a wall.
  */
-function landingSlab(): Mesh {
-  // The underside follows the profile 5 m down. A straight underside would cut
-  // above the curved hill and fold the outline over itself.
-  const top: Array<[number, number]> = [[-6, hillY(0)]];
-  for (let x = 0; x <= LANDING.end + 120; x += 1.5) top.push([x, hillY(Math.min(x, LANDING.end))]);
-  const shape = new Shape();
-  shape.moveTo(top[0][0], top[0][1]);
-  for (const [x, y] of top.slice(1)) shape.lineTo(x, y);
-  for (const [x, y] of top.reverse()) shape.lineTo(x, y - 5);
-  shape.closePath();
-  const geometry = new ExtrudeGeometry(shape, { depth: 16, bevelEnabled: false, curveSegments: 1 });
-  geometry.translate(0, 0, -8);
-  const slab = new Mesh(geometry, new MeshStandardMaterial({ color: "#eef3ff", roughness: 0.85 }));
-  slab.receiveShadow = true;
-  return slab;
+function landingHill(): Mesh {
+  const along: number[] = [];
+  for (let x = -14; x <= LANDING.end + 120; x += 1.5) along.push(x);
+  // Under the take-off table the hill's top end slopes away into the ground,
+  // rather than ending in a block.
+  const topAt = (x: number): number =>
+    x >= 0
+      ? hillY(Math.min(x, LANDING.end))
+      : MathUtils.lerp(hillY(0), lineY(x) - SINK - 0.6, MathUtils.smoothstep(-x, 0, 12));
+  const geometry = new PlaneGeometry(1, 1, along.length - 1, ACROSS.length - 1);
+  const pos = geometry.attributes.position;
+  const uv = geometry.attributes.uv;
+  // PlaneGeometry's rows run top to bottom; laying row r at ACROSS[r] keeps its faces pointing up.
+  for (let r = 0; r < ACROSS.length; r++) {
+    for (let c = 0; c < along.length; c++) {
+      const i = r * along.length + c;
+      const x = along[c];
+      const z = ACROSS[r];
+      pos.setXYZ(i, x, topAt(x) + shoulder(z), z);
+      uv.setXY(i, x, z); // metres: u down the hill, v across, so grooming runs down the fall line
+    }
+  }
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  const hill = new Mesh(geometry, snowMaterial({ color: "#eef3ff", tile: 6, groomed: true }));
+  hill.receiveShadow = true;
+  return hill;
 }
 
 // --- woods ----------------------------------------------------------------------------
 
-/** Spruce: three stacked cones on a short trunk, with snow on the boughs. */
+/** Spruce woods in clumps, kept clear of the jump. */
 function forest(scene: Scene, lowPower: boolean): void {
   const wanted = lowPower ? 450 : 1100;
-  const spots: Array<[number, number, number, number]> = [];
-  for (let i = 0; spots.length < wanted && i < wanted * 12; i++) {
+  const near: TreeSpot[] = [];
+  const far: TreeSpot[] = [];
+  for (let i = 0, placed = 0; placed < wanted && i < wanted * 12; i++) {
     const x = -450 + hash(i, 1) * 1700;
     const z = 20 - hash(i, 2) * 820;
     // Keep the jump clear: the track, the inrun corridor, and the run-out.
     if (Math.abs(z) < 16 && x > -160 && x < LANDING.end + 80) continue;
     // Woods grow in clumps: only where the clump noise is high.
     if (noise(x / 70 - 4, z / 70 + 2) < 0.1 + hash(i, 3) * 0.25) continue;
-    spots.push([x, groundY(x, z), z, 0.7 + hash(i, 4) * 0.9]);
+    const spot = { x, y: groundY(x, z), z, height: 9 + hash(i, 4) * 10 };
+    // Full detail where the camera passes close; the far woods only need the shape.
+    const close = z > -170 && x > -230 && x < LANDING.end + 160;
+    (close ? near : far).push(spot);
+    placed++;
   }
-
-  const needles = new MeshStandardMaterial({ color: "#16301f", roughness: 1 });
-  const snowy = new MeshStandardMaterial({ color: "#cbd6ec", roughness: 1 });
-  const bark = new MeshStandardMaterial({ color: "#3a2a1e", roughness: 1 });
-  const tiers: Array<[ConeGeometry, number, MeshStandardMaterial]> = [
-    [new ConeGeometry(3.2, 6, 8), 3.5, needles],
-    [new ConeGeometry(2.4, 5, 8), 6.5, needles],
-    [new ConeGeometry(1.5, 4.2, 8), 9.4, needles],
-    [new ConeGeometry(1.1, 2.4, 8), 10.6, snowy],
-  ];
-  const trunk = new InstancedMesh(new CylinderGeometry(0.35, 0.45, 2, 6), bark, spots.length);
-  const layers = tiers.map(([g, , m]) => new InstancedMesh(g, m, spots.length));
-  const dummy = new Object3D();
-  const m = new Matrix4();
-  spots.forEach(([x, y, z, k], i) => {
-    dummy.position.set(x, y + k, z);
-    dummy.scale.set(k, k, k);
-    dummy.rotation.y = hash(i, 5) * Math.PI;
-    dummy.updateMatrix();
-    trunk.setMatrixAt(i, dummy.matrix);
-    tiers.forEach(([, height], t) => {
-      m.makeTranslation(0, height - 1, 0);
-      layers[t].setMatrixAt(i, dummy.matrix.clone().multiply(m));
-    });
-  });
-  for (const l of [trunk, ...layers]) {
-    l.castShadow = !lowPower;
-    scene.add(l);
-  }
+  plantForest(scene, near, far, lowPower);
 }
 
 export function buildTerrain(scene: Scene, lowPower: boolean): void {
-  scene.add(ground(lowPower), landingSlab());
+  scene.add(ground(lowPower), landingHill());
   forest(scene, lowPower);
 }

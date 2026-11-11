@@ -14,6 +14,7 @@ import {
   SRGBColorSpace,
 } from "three";
 import { santaHat } from "../../../shared/santa-hat";
+import { seeded } from "./random";
 
 /** Where the head sits inside the cutout PNG's transparent margins (same as the golf game). */
 const HEAD_TRIM = { x: 67 / 300, y: 21 / 300, w: 189 / 300, h: 259 / 300 };
@@ -101,14 +102,6 @@ const FACE_WIDTH = HEAD_HEIGHT * (HEAD_TRIM.w / HEAD_TRIM.h);
 /** Face depth at a point given in metres from the face's centre (x across, y up). */
 const depthAt = (x: number, y: number): number => faceDepth(x / FACE_WIDTH + 0.5, 0.5 - y / HEAD_HEIGHT);
 
-/** Repeatable pseudo-random numbers in 0..1, so the beard is the same every time. */
-function seeded(seed: number): () => number {
-  let s = seed;
-  return () => {
-    s = (s * 16807) % 2147483647;
-    return s / 2147483647;
-  };
-}
 
 // The head is one card, in face-centred metres (x across, y up): the photo, with
 // the beard painted onto the same texture, so the two can never drift apart.

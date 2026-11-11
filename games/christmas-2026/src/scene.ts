@@ -51,14 +51,21 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   scene.fog = new Fog(HAZE, 120, 760);
   const lowPower = isLowPower();
 
-  // Moonlit snow: cool blue ambient, a soft moon from behind the left shoulder.
-  scene.add(new HemisphereLight("#5c74b8", "#c9d6f2", 0.75));
-  const moon = new DirectionalLight("#c9d6ff", 1.1);
-  moon.position.set(-60, 120, 80);
-  scene.add(moon);
+  // Moonlit snow: a dim, cool sky light, and the moon from behind the left
+  // shoulder casting shadows; the floodlights (see structure.ts) do the rest.
+  scene.add(new HemisphereLight("#4a5f9c", "#9fb0d8", 0.5));
+  const moon = new DirectionalLight("#c9d6ff", 0.8);
+  moon.castShadow = true;
+  // A tight shadow box that travels with Ryan, so his shadow is crisp on any device.
+  moon.shadow.mapSize.setScalar(lowPower ? 1024 : 2048);
+  const reach = 30;
+  Object.assign(moon.shadow.camera, { left: -reach, right: reach, top: reach, bottom: -reach, near: 1, far: 400 });
+  moon.shadow.bias = -0.0005;
+  moon.shadow.normalBias = 0.04;
+  scene.add(moon, moon.target);
 
   buildTerrain(scene, lowPower);
-  buildStructures(scene);
+  buildStructures(scene, lowPower);
   const world = buildWorld(scene, lowPower);
   const ryan = buildRyan(headImage);
   const jumper = ryan.group;
@@ -70,8 +77,9 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
 
   const camera = new PerspectiveCamera(50, 1, 0.5, 3000);
   const renderer = createView(canvas, camera, (w, h) => bloom.resize(w, h));
-  // Lamps, the tower's lights, and the star glow; the snow and sky do not.
-  const bloom = createBloom(renderer, scene, camera, { strength: 0.7, radius: 0.5, threshold: 0.7, lowPower });
+  // Only things brighter than white glow (lamps, floodlights, the tower's
+  // lights, lit windows; see `glowing`), never lit snow or white paint.
+  const bloom = createBloom(renderer, scene, camera, { strength: 0.8, radius: 0.55, threshold: 1, lowPower });
   let time = 0;
 
   const camPos = new Vector3();
@@ -94,6 +102,9 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
         angle = MathUtils.lerp(p.angle, angle, blend);
       }
       jumper.position.set(x, y, 0);
+      // The moon's shadow box follows him.
+      moon.target.position.set(x, y, 0);
+      moon.position.set(x - 60, y + 120, 80);
       jumper.rotation.z = MathUtils.damp(jumper.rotation.z, angle, 10, dt);
       if (j.crashed && !spilled) {
         // The sack bursts as he goes down.
