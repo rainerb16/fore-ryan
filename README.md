@@ -225,7 +225,7 @@ sleigh crossing the sky.
 ### The Christmas line
 
 A glowing gold line crosses the landing hill at 130 m, with a lit star beside it. Land cleanly
-past it and Christmas arrives: fireworks over Calgary and "Jingle Bells" (1857, public
+past it for the payoff: "Happy Holidays!", fireworks over Calgary, and "Jingle Bells" (1857, public
 domain). It takes a good or perfect take-off and a long glide, and a late take-off can never
 reach it; `test/skijump.test.mjs` holds it to that. It's `CHRISTMAS_LINE_M` in
 `rules/rules.ts`, and it changes nothing about the score.

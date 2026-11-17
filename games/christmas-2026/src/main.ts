@@ -129,7 +129,7 @@ async function boot(): Promise<void> {
     } else {
       const isBest = d > best();
       if (isBest) store.set(BEST_KEY, d.toFixed(2));
-      $("resultTitle").textContent = christmas ? "Merry Christmas! 🎆" : isBest ? "New personal best! 🎄" : "Nice jump!";
+      $("resultTitle").textContent = christmas ? "Happy Holidays! 🎆" : isBest ? "New personal best! 🎄" : "Nice jump!";
       $("resultDistance").textContent = metres(d);
       $("resultDetail").textContent =
         `${jump.quality} take-off · ${christmas && isBest ? "new personal best!" : `best ${metres(best())}`}`;
@@ -158,9 +158,9 @@ async function boot(): Promise<void> {
         call("CRASH!", true, 2000);
         sfx.crash();
       } else if (d >= CHRISTMAS_LINE_M) {
-        // Past the line: Christmas comes early.
+        // Past the line: the holiday payoff.
         christmas = true;
-        call("MERRY CHRISTMAS!", false, 4000);
+        call("HAPPY HOLIDAYS!", false, 4000);
         sfx.land(d);
         sfx.jingleBells();
         view.celebrate(JINGLE_SECONDS, sfx.boom);

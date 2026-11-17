@@ -70,7 +70,15 @@ export function initAudio(): void {
   }
   master = ctx.createGain();
   master.gain.value = muted ? 0 : 1;
-  master.connect(ctx.destination);
+  // The song, its bells and the fireworks can stack up past full scale: a
+  // compressor keeps that from crackling.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -10;
+  limiter.knee.value = 6;
+  limiter.ratio.value = 8;
+  limiter.attack.value = 0.003;
+  limiter.release.value = 0.2;
+  master.connect(limiter).connect(ctx.destination);
   noise = makeNoise(ctx);
   hiss = layer(ctx, master, "bandpass", 0.8);
   wind = layer(ctx, master, "lowpass", 1.2);
@@ -122,9 +130,10 @@ export function hush(): void {
 export function setLayers(skis: number, wind_: number, slow = false): void {
   if (!ctx || !hiss || !wind) return;
   const t = ctx.currentTime;
-  hiss.gain.gain.setTargetAtTime(skis * 0.22, t, 0.08);
+  // Kept low: they sit under everything else.
+  hiss.gain.gain.setTargetAtTime(skis * 0.1, t, 0.08);
   hiss.filter.frequency.setTargetAtTime(500 + skis * 2200, t, 0.1);
-  wind.gain.gain.setTargetAtTime(wind_ * 0.3, t, 0.15);
+  wind.gain.gain.setTargetAtTime(wind_ * 0.07, t, 0.15);
   // Slow motion deepens the wind, like a slowed-down recording.
   wind.filter.frequency.setTargetAtTime((300 + wind_ * 1400) * (slow ? 0.45 : 1), t, 0.15);
 }
@@ -161,9 +170,15 @@ function sweep(from: number, to: number, dur: number, type: OscillatorType, vol:
 }
 
 /** A burst of filtered noise: crunches, cheers, fireworks. */
-function burst(dur: number, type: BiquadFilterType, freq: number, vol: number, opts: { when?: number; attack?: number; q?: number } = {}): void {
+function burst(
+  dur: number,
+  type: BiquadFilterType,
+  freq: number,
+  vol: number,
+  opts: { when?: number; attack?: number; q?: number; out?: AudioNode } = {},
+): void {
   if (!ctx || !master || !noise) return;
-  const { when = 0, attack = 0.005, q = 0.8 } = opts;
+  const { when = 0, attack = 0.005, q = 0.8, out = master } = opts;
   const t0 = ctx.currentTime + when;
   const source = ctx.createBufferSource();
   source.buffer = noise;
@@ -176,18 +191,22 @@ function burst(dur: number, type: BiquadFilterType, freq: number, vol: number, o
   gain.gain.setValueAtTime(0.0001, t0);
   gain.gain.exponentialRampToValueAtTime(vol, t0 + attack);
   gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  source.connect(filter).connect(gain).connect(master);
+  source.connect(filter).connect(gain).connect(out);
   source.start(t0, Math.random());
   source.stop(t0 + dur + 0.05);
 }
 
-/** One shake of sleigh bells: a few small, slightly out-of-tune bells at once. */
+/**
+ * One shake of sleigh bells: the bright rattle of the pellets inside, and a
+ * handful of small, slightly out-of-tune bells ringing at once.
+ */
 function shake(out: AudioNode, when: number, vol: number): void {
-  for (let i = 0; i < 3; i++) {
-    const f = 2400 + Math.random() * 2600;
-    const at = when + Math.random() * 0.03;
-    tone(f, 0.16, "sine", at, vol, out);
-    tone(f * 2.76, 0.08, "sine", at, vol * 0.4, out); // a bell's clangy overtone
+  burst(0.09, "highpass", 7000, vol * 0.9, { when, attack: 0.003, out });
+  for (let i = 0; i < 5; i++) {
+    const f = 2400 + Math.random() * 3200;
+    const at = when + Math.random() * 0.035;
+    tone(f, 0.2, "sine", at, vol, out);
+    tone(f * 2.76, 0.09, "sine", at, vol * 0.4, out); // a bell's clangy overtone
   }
 }
 
@@ -216,18 +235,18 @@ function playJingleBells(): void {
   if (!out) return;
   let at = 0.15;
   for (const [freq, beats] of JINGLE_BELLS) {
-    tone(freq, beats * BEAT * 0.9, "triangle", at, 0.15, out);
-    tone(freq * 2, beats * BEAT * 0.5, "sine", at, 0.03, out); // a little sparkle on top
+    tone(freq, beats * BEAT * 0.9, "triangle", at, 0.26, out);
+    tone(freq * 2, beats * BEAT * 0.5, "sine", at, 0.05, out); // a little sparkle on top
     at += beats * BEAT;
   }
   BASS.forEach((freq, bar) => {
     const t = 0.15 + bar * 4 * BEAT;
-    tone(freq, BEAT * 1.6, "sine", t, 0.1, out);
-    tone(freq * 1.5, BEAT * 1.6, "sine", t + 2 * BEAT, 0.07, out);
+    tone(freq, BEAT * 1.6, "sine", t, 0.16, out);
+    tone(freq * 1.5, BEAT * 1.6, "sine", t + 2 * BEAT, 0.11, out);
   });
-  // Sleigh bells on every beat, as in every recording ever made.
-  const beats = Math.round((at - 0.15) / BEAT);
-  for (let i = 0; i < beats; i++) shake(out, 0.15 + i * BEAT, i % 2 ? 0.025 : 0.04);
+  // Sleigh bells shaken on every half-beat, harder on the beat, as in every recording ever made.
+  const halves = Math.round((at - 0.15) / (BEAT / 2));
+  for (let i = 0; i < halves; i++) shake(out, 0.15 + (i * BEAT) / 2, i % 2 ? 0.035 : 0.07);
 }
 
 export const sfx = {
@@ -253,7 +272,7 @@ export const sfx = {
     for (let i = 0; i < count; i++) {
       const q = i / count;
       // Swelling in as it arrives, fading as it goes.
-      const vol = 0.045 * Math.sin(q * Math.PI);
+      const vol = 0.06 * Math.sin(q * Math.PI);
       shake(q < 0.5 ? left : right, i * 0.16, Math.max(vol, 0.004));
     }
     // A distant "ho ho ho".

@@ -21,7 +21,7 @@ export interface JumpDetails {
 }
 
 /**
- * Land cleanly past this and Christmas arrives: fireworks over Calgary and
+ * Land cleanly past this for the payoff: "Happy Holidays!", fireworks over Calgary and
  * Jingle Bells. It takes a timed take-off and a long glide; a late take-off
  * can never reach it. Presentation only: the score is still the distance.
  */
