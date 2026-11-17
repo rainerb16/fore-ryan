@@ -161,7 +161,7 @@ async function boot(): Promise<void> {
         // Past the line: the holiday payoff.
         christmas = true;
         call("HAPPY HOLIDAYS!", false, 4000);
-        sfx.land(d);
+        sfx.land(d, true);
         sfx.jingleBells();
         view.celebrate(JINGLE_SECONDS, sfx.boom);
       } else {
