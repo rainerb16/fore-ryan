@@ -7,8 +7,8 @@
 // The rasteriser is not a saved dependency: the PNG is committed, so a normal
 // install and a Netlify build never need it.
 //
-// The club is the same shape src/render/shapes.ts draws in game, translated from
-// canvas calls into an SVG path, so the card matches what people actually see.
+// The card is the arcade at Christmas: the neon title, what's new, and Ryan in a
+// Santa hat. Redo it each season the arcade gets a new game.
 import { readFileSync, writeFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 
@@ -19,7 +19,7 @@ const H = 630;
 // game crops with, and they match the image's real opaque bounds.
 const TRIM = { x: 67 / 300, y: 21 / 300, w: 189 / 300, h: 259 / 300 };
 
-const head = readFileSync("public/assets/ryan-head-floating.png").toString("base64");
+const head = readFileSync("public/assets/ryan/ryan-head-floating.png").toString("base64");
 
 // Where the visible head lands on the card. It is deliberately run off the
 // bottom edge: the cutout ends in a straight line across the shoulders, which
@@ -35,81 +35,82 @@ const fullH = contentH / TRIM.h;
 const fullX = contentX - TRIM.x * fullW;
 const fullY = contentY - TRIM.y * fullH;
 
-// Club, in the proportions drawClub() uses. Shouldered behind the head, with the
-// face out in the open to the left where it is actually legible.
-const r = 120;
-const shaftW = r * 0.115;
-const top = -r * 2.05;
-const bottom = r * 1.55;
+// Christmas lights strung along the top, sagging between hooks.
+const bulbColours = ["#ff3b3b", "#3bff7a", "#ffd23b", "#3bb4ff", "#ff7af0"];
+const lights = [];
+let wire = "M -10 18";
+for (let hook = 0; hook < 6; hook++) {
+  const x0 = -10 + hook * 210;
+  wire += ` Q ${x0 + 105} 70 ${x0 + 210} 18`;
+  for (let k = 1; k < 6; k++) {
+    const t = k / 6;
+    const x = x0 + 210 * t;
+    const y = 18 + 52 * 4 * t * (1 - t) * 0.5 + 10;
+    const c = bulbColours[(hook * 5 + k) % bulbColours.length];
+    lights.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="8" ry="11" fill="${c}" filter="url(#bulb)"/>`);
+  }
+}
 
-const clubFace = [
-  `M ${-r * 0.1} ${bottom - r * 0.1}`,
-  `L ${-r * 0.78} ${bottom + r * 0.16}`,
-  `L ${-r * 0.74} ${bottom + r * 0.42}`,
-  `L ${r * 0.14} ${bottom + r * 0.3}`,
-  "Z",
-].join(" ");
+// A few snowflakes, placed by hand so they stay clear of the text.
+const flakes = [[540, 120], [660, 470], [470, 560], [1130, 520], [700, 190], [600, 300], [1160, 300]]
+  .map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${3 + (i % 3)}" fill="#ffffff" opacity="0.55"/>`)
+  .join("");
+
+// A Santa hat on his head, flopping off to the right.
+const hat = `<g transform="translate(14 48)">
+  <path d="M 752 236 C 790 120, 900 70, 1010 98 C 1090 118, 1140 170, 1160 228 L 1112 250 C 1060 190, 1000 170, 980 200 L 1100 246 Z"
+        fill="#d42a35"/>
+  <path d="M 744 232 C 840 200, 1000 196, 1106 232 L 1100 272 C 1000 240, 840 242, 750 276 Z"
+        fill="#f4f1ea"/>
+  <circle cx="1160" cy="236" r="30" fill="#f4f1ea"/></g>`;
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0.35" y2="1">
-      <stop offset="0%" stop-color="#140b33"/>
-      <stop offset="42%" stop-color="#1d1046"/>
-      <stop offset="72%" stop-color="#2a1450"/>
-      <stop offset="100%" stop-color="#14092c"/>
+    <linearGradient id="night" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0%" stop-color="#0d0620"/>
+      <stop offset="55%" stop-color="#170a33"/>
+      <stop offset="100%" stop-color="#07040f"/>
     </linearGradient>
-    <radialGradient id="glowA" cx="0.16" cy="0.06" r="0.62">
-      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.32"/>
-      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    <radialGradient id="glowA" cx="0.18" cy="0.32" r="0.6">
+      <stop offset="0%" stop-color="#ff3fd0" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#ff3fd0" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="glowB" cx="0.88" cy="0.14" r="0.55">
-      <stop offset="0%" stop-color="#ff6fa3" stop-opacity="0.28"/>
-      <stop offset="100%" stop-color="#ff6fa3" stop-opacity="0"/>
+    <radialGradient id="glowB" cx="0.86" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#36e2ff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#36e2ff" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="fairway" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#2e8e60" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#2e8e60" stop-opacity="0.38"/>
-    </linearGradient>
-    <linearGradient id="shaft" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#8a94a6"/>
-      <stop offset="45%" stop-color="#e9edf3"/>
-      <stop offset="100%" stop-color="#78829a"/>
-    </linearGradient>
-    <linearGradient id="clubhead" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#dfe5ee"/>
-      <stop offset="100%" stop-color="#9aa4b6"/>
-    </linearGradient>
+    <filter id="neon" x="-20%" y="-40%" width="140%" height="180%">
+      <feGaussianBlur stdDeviation="9" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="bulb" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
 
-  <rect width="${W}" height="${H}" fill="url(#sky)"/>
+  <rect width="${W}" height="${H}" fill="url(#night)"/>
   <rect width="${W}" height="${H}" fill="url(#glowA)"/>
   <rect width="${W}" height="${H}" fill="url(#glowB)"/>
-  <rect x="0" y="${H - 170}" width="${W}" height="170" fill="url(#fairway)"/>
-
-  <!-- Drawn before the head, so the shaft passes behind it. -->
-  <g transform="translate(806 296) rotate(26)">
-    <rect x="${-shaftW / 2}" y="${top}" width="${shaftW}" height="${bottom - top}" fill="url(#shaft)"/>
-    <rect x="${-shaftW * 0.78}" y="${top}" width="${shaftW * 1.56}" height="${r * 0.78}" fill="#241a33"/>
-    <path d="${clubFace}" fill="url(#clubhead)" stroke="rgba(20,12,38,.5)" stroke-width="${r * 0.04}"/>
-  </g>
+  ${flakes}
 
   <image href="data:image/png;base64,${head}"
          x="${fullX}" y="${fullY}" width="${fullW}" height="${fullH}"/>
+  ${hat}
 
-  <!-- A ball waiting at the clubface. Kept clear of both the club and the text. -->
-  <circle cx="628" cy="512" r="16" fill="#ffffff"/>
-  <circle cx="622" cy="506" r="2.8" fill="#d7dce8"/>
-  <circle cx="632" cy="515" r="2.8" fill="#d7dce8"/>
-  <circle cx="624" cy="519" r="2.8" fill="#d7dce8"/>
+  <path d="${wire}" fill="none" stroke="#1d1a26" stroke-width="3"/>
+  ${lights.join("\n  ")}
 
-  <text x="82" y="252" font-family="DejaVu Sans" font-size="100" font-weight="bold"
-        fill="#ffd166">Fore Ryan!</text>
-  <text x="86" y="326" font-family="DejaVu Sans" font-size="40" font-weight="bold"
-        fill="#f2ecff">A birthday golf game</text>
-  <text x="86" y="392" font-family="DejaVu Sans" font-size="27"
-        fill="#b9a9d6">Sink the holes, dodge the hazards,</text>
-  <text x="86" y="430" font-family="DejaVu Sans" font-size="27"
-        fill="#b9a9d6">then take the leaderboard.</text>
+  <text x="78" y="230" font-family="DejaVu Sans" font-size="104" font-weight="bold" font-style="italic"
+        fill="#ffd6f5" stroke="#ff3fd0" stroke-width="2" filter="url(#neon)">Ryan</text>
+  <text x="80" y="330" font-family="DejaVu Sans" font-size="96" font-weight="bold" letter-spacing="6"
+        fill="#d8fbff" stroke="#36e2ff" stroke-width="2" filter="url(#neon)">ARCADE</text>
+  <text x="84" y="410" font-family="DejaVu Sans" font-size="31" font-weight="bold"
+        fill="#ffd166">New for Christmas: Ryan Ski Jump</text>
+  <text x="84" y="462" font-family="DejaVu Sans" font-size="26"
+        fill="#c9bde6">Plus Fore Ryan!, and a few machines</text>
+  <text x="84" y="498" font-family="DejaVu Sans" font-size="26"
+        fill="#c9bde6">that are mysteriously out of order.</text>
 </svg>`;
 
 const png = new Resvg(svg, {

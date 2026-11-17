@@ -21,24 +21,30 @@ async function rest(path: string, init: RequestInit = {}): Promise<Response> {
   return res;
 }
 
+const eq = (value: string): string => `eq.${encodeURIComponent(value)}`;
+
+/** Total from a `Prefer: count=exact` response's content-range, e.g. "0-0/12". */
+const countOf = (res: Response): number => Number(res.headers.get("content-range")?.split("/")[1] ?? 0);
+
 export interface RunToken {
   token: string;
+  game_id: string;
   issued_at: string;
   used_at: string | null;
 }
 
-export async function issueToken(ipHash: string | null): Promise<RunToken> {
+export async function issueToken(gameId: string, ipHash: string | null): Promise<RunToken> {
   const res = await rest("run_tokens", {
     method: "POST",
     headers: { Prefer: "return=representation" },
-    body: JSON.stringify({ ip_hash: ipHash }),
+    body: JSON.stringify({ game_id: gameId, ip_hash: ipHash }),
   });
   const [row] = (await res.json()) as RunToken[];
   return row;
 }
 
 export async function findToken(token: string): Promise<RunToken | null> {
-  const res = await rest(`run_tokens?token=eq.${encodeURIComponent(token)}&select=*&limit=1`);
+  const res = await rest(`run_tokens?token=${eq(token)}&select=*&limit=1`);
   const [row] = (await res.json()) as RunToken[];
   return row ?? null;
 }
@@ -48,14 +54,11 @@ export async function findToken(token: string): Promise<RunToken | null> {
  * so an empty result means someone else got there first. That is the replay check.
  */
 export async function consumeToken(token: string): Promise<boolean> {
-  const res = await rest(
-    `run_tokens?token=eq.${encodeURIComponent(token)}&used_at=is.null`,
-    {
-      method: "PATCH",
-      headers: { Prefer: "return=representation" },
-      body: JSON.stringify({ used_at: new Date().toISOString() }),
-    },
-  );
+  const res = await rest(`run_tokens?token=${eq(token)}&used_at=is.null`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({ used_at: new Date().toISOString() }),
+  });
   const rows = (await res.json()) as unknown[];
   return rows.length > 0;
 }
@@ -63,25 +66,30 @@ export async function consumeToken(token: string): Promise<boolean> {
 /** Tokens issued to this address in the last hour, for rate limiting run starts. */
 export async function recentTokenCount(ipHash: string): Promise<number> {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const res = await rest(
-    `run_tokens?ip_hash=eq.${encodeURIComponent(ipHash)}&issued_at=gte.${since}&select=token`,
-    { headers: { Prefer: "count=exact", Range: "0-0" } },
-  );
-  const range = res.headers.get("content-range"); // "0-0/12"
-  return Number(range?.split("/")[1] ?? 0);
+  const res = await rest(`run_tokens?ip_hash=${eq(ipHash)}&issued_at=gte.${since}&select=token`, {
+    headers: { Prefer: "count=exact", Range: "0-0" },
+  });
+  return countOf(res);
 }
 
-export interface RunRow {
+/** Golf's own columns. Other games leave them null and use `details`. */
+export interface RunColumns {
+  level_reached?: number;
+  levels_cleared?: number;
+  shots_fired?: number;
+  holes_sunk?: number;
+  levels?: unknown;
+  details?: unknown;
+}
+
+export interface RunRow extends RunColumns {
+  game_id: string;
   display_name: string;
   player_id: string;
   points: number;
-  level_reached: number;
-  levels_cleared: number;
   duration_ms: number;
-  shots_fired: number;
-  holes_sunk: number;
-  levels: unknown;
   run_token: string;
+  flagged: boolean;
   client_meta: unknown;
 }
 
@@ -89,15 +97,13 @@ export async function insertRun(row: RunRow): Promise<void> {
   await rest("runs", { method: "POST", body: JSON.stringify(row) });
 }
 
-/** Submissions from this player in the last hour, for rate limiting. */
+/** Submissions from this player in the last hour, across all games, for rate limiting. */
 export async function recentRunCount(playerId: string): Promise<number> {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const res = await rest(
-    `runs?player_id=eq.${encodeURIComponent(playerId)}&created_at=gte.${since}&select=id`,
-    { headers: { Prefer: "count=exact", Range: "0-0" } },
-  );
-  const range = res.headers.get("content-range"); // "0-0/12"
-  return Number(range?.split("/")[1] ?? 0);
+  const res = await rest(`runs?player_id=${eq(playerId)}&created_at=gte.${since}&select=id`, {
+    headers: { Prefer: "count=exact", Range: "0-0" },
+  });
+  return countOf(res);
 }
 
 export interface LeaderboardRow {
@@ -105,39 +111,42 @@ export interface LeaderboardRow {
   player_id: string;
   display_name: string;
   points: number;
-  level_reached: number;
-  levels_cleared: number;
+  level_reached: number | null;
+  levels_cleared: number | null;
   duration_ms: number;
   created_at: string;
 }
 
-export async function topRuns(limit: number): Promise<LeaderboardRow[]> {
+const BOARD_COLUMNS = "player_id,display_name,points,level_reached,levels_cleared,duration_ms,created_at";
+
+/** Higher or lower points first, per the game, then the faster run. */
+export async function topRuns(gameId: string, sort: "asc" | "desc", limit: number): Promise<LeaderboardRow[]> {
   const res = await rest(
-    `leaderboard?select=player_id,display_name,points,level_reached,levels_cleared,duration_ms,created_at` +
-      `&order=points.desc,duration_ms.asc&limit=${limit}`,
+    `leaderboard?game_id=${eq(gameId)}&select=${BOARD_COLUMNS}` +
+      `&order=points.${sort},duration_ms.asc&limit=${limit}`,
   );
   return (await res.json()) as LeaderboardRow[];
 }
 
 /**
- * Where a run stands overall, for someone below the listed cut. Counts what beats
- * it on the board's own ordering. Both values come from the database.
+ * Where a run stands in its game, for someone below the listed cut. Counts what
+ * beats it on the board's own ordering. Both values come from the database.
  */
-export async function rankOf(row: LeaderboardRow): Promise<number> {
+export async function rankOf(gameId: string, sort: "asc" | "desc", row: LeaderboardRow): Promise<number> {
+  const better = sort === "desc" ? "gt" : "lt";
   const beats =
-    `or=(points.gt.${row.points},` +
+    `or=(points.${better}.${row.points},` +
     `and(points.eq.${row.points},duration_ms.lt.${row.duration_ms}))`;
-  const res = await rest(`leaderboard?select=player_id&${beats}`, {
+  const res = await rest(`leaderboard?game_id=${eq(gameId)}&select=player_id&${beats}`, {
     headers: { Prefer: "count=exact", Range: "0-0" },
   });
-  return Number(res.headers.get("content-range")?.split("/")[1] ?? 0) + 1;
+  return countOf(res) + 1;
 }
 
-/** Best run for one person, so the client can show "your best" alongside the top list. */
-export async function personalBest(playerId: string): Promise<LeaderboardRow | null> {
+/** One person's best run in a game, so the client can show "your best" alongside the top list. */
+export async function personalBest(gameId: string, playerId: string): Promise<LeaderboardRow | null> {
   const res = await rest(
-    `leaderboard?player_id=eq.${encodeURIComponent(playerId)}` +
-      `&select=player_id,display_name,points,level_reached,levels_cleared,duration_ms,created_at&limit=1`,
+    `leaderboard?game_id=${eq(gameId)}&player_id=${eq(playerId)}&select=${BOARD_COLUMNS}&limit=1`,
   );
   const [row] = (await res.json()) as LeaderboardRow[];
   return row ?? null;

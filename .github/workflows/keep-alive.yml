@@ -1,0 +1,35 @@
+# Supabase pauses free projects after a week without activity. Twice a week this
+# reads the top birthday score through the live site, which touches the
+# database. A failure exits non-zero, so GitHub emails the repo owner.
+#
+# Needs one repository variable, SITE_URL (Settings → Secrets and variables →
+# Actions → Variables), e.g. https://your-site.netlify.app. No secrets needed.
+# Scheduled workflows only run from the default branch.
+
+name: Keep the database awake
+
+on:
+  schedule:
+    - cron: "17 9 * * 1,4" # Mondays and Thursdays, 09:17 UTC
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read the top birthday score
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          if [ -z "$SITE_URL" ]; then
+            echo "::error::Set the SITE_URL repository variable."
+            exit 1
+          fi
+          body=$(curl --fail --silent --show-error --retry 3 --retry-delay 20 --max-time 30 \
+            "$SITE_URL/api/leaderboard?game=birthday-2026&limit=1")
+          echo "$body"
+          # A 200 with no standings would mean the read did not reach the database.
+          echo "$body" | grep -q '"top"' || { echo "::error::Unexpected response"; exit 1; }

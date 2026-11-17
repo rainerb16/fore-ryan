@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { Resvg } from "@resvg/resvg-js";
 
-const head = readFileSync("public/assets/ryan-head-floating.png").toString("base64");
+const head = readFileSync("public/assets/ryan/ryan-head-floating.png").toString("base64");
 
 // A square crop of the source, hair to chin. The trim the game uses is portrait
 // and includes the shoulders, which at 32 pixels turns the face into a speck.

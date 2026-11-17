@@ -1,8 +1,29 @@
 // Boots the built bundle inside jsdom with a stubbed canvas and a seeded PRNG,
 // and hands back the controls a test needs to play the game. Shared by the smoke
 // test and the UI tests so there is one description of how the game starts.
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { buildSync } from "esbuild";
 import { JSDOM } from "jsdom";
+
+/**
+ * A built page's HTML, plus its entry script bundled into one classic script.
+ * Vite splits modules shared between pages into chunks the entry imports, and
+ * jsdom cannot run ES module imports, so esbuild inlines them.
+ * @param {string} page path under dist/, e.g. "games/birthday-2026/"
+ */
+export function loadPage(page) {
+  const html = readFileSync(`dist/${page}index.html`, "utf8");
+  const src = html.match(/<script type="module"[^>]*src="([^"]+)"/)?.[1];
+  if (!src) throw new Error(`no module script in dist/${page}index.html`);
+  const { outputFiles } = buildSync({
+    entryPoints: [`dist${src}`],
+    bundle: true,
+    format: "iife",
+    write: false,
+    logLevel: "warning",
+  });
+  return { html, code: outputFiles[0].text };
+}
 
 const gradient = { addColorStop() {} };
 
@@ -30,14 +51,12 @@ function stubContext(drawnText, drawnImages) {
  * @param {number} [options.seed] PRNG seed, so runs are reproducible
  */
 export function bootGame({ fetch, seed = 0x9e3779b9 } = {}) {
-  const html = readFileSync("dist/index.html", "utf8");
-  const bundle = readdirSync("dist/assets").find((f) => f.endsWith(".js"));
-  const code = readFileSync(`dist/assets/${bundle}`, "utf8");
+  const { html, code } = loadPage("games/birthday-2026/");
 
   // A real origin is required or localStorage throws, which the game's storage
   // helper would quietly swallow — leaving persistence untested.
   const dom = new JSDOM(html, {
-    url: "https://fore-ryan.test/",
+    url: "https://fore-ryan.test/games/birthday-2026/",
     runScripts: "outside-only",
     pretendToBeVisual: true,
   });

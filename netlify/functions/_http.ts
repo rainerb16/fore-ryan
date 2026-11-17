@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { env, MAX_NAME_LENGTH } from "./_env";
+import { env } from "./_env";
 
 export const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -29,18 +29,3 @@ export const hashIp = (ip: string | null): string | null =>
 export const isUuid = (v: unknown): v is string =>
   typeof v === "string" &&
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-
-/** Collapse whitespace, drop control characters, and cap the length. */
-export function cleanName(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const name = Array.from(raw)
-    .filter((ch) => {
-      const code = ch.codePointAt(0) ?? 0;
-      return code >= 32 && code !== 127;
-    })
-    .join("")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!name || name.length > MAX_NAME_LENGTH) return null;
-  return name;
-}

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0720">
+<title>Fore Ryan!</title>
+
+<!-- Generated from the head cutout by scripts/make-icons.mjs. -->
+<link rel="icon" type="image/png" sizes="64x64" href="/favicon.png">
+<link rel="icon" type="image/x-icon" sizes="32x32" href="/favicon.ico">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta name="description" content="A birthday golf game. Sink the holes, dodge the hazards, then take the leaderboard.">
+
+<!-- Link preview for Slack, Teams, and mail. %SITE_URL% is filled in at build
+     time from Netlify's own URL; locally it collapses to a relative path. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Fore Ryan!">
+<meta property="og:title" content="Fore Ryan!">
+<meta property="og:description" content="A birthday golf game. Sink the holes, dodge the hazards, then take the leaderboard.">
+<meta property="og:url" content="%SITE_URL%/games/birthday-2026/">
+<meta property="og:image" content="%SITE_URL%/og.png">
+<meta property="og:image:type" content="image/png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ryan's floating head beside a golf club, over the game's night-time course">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Fore Ryan!">
+<meta name="twitter:description" content="A birthday golf game. Sink the holes, dodge the hazards, then take the leaderboard.">
+<meta name="twitter:image" content="%SITE_URL%/og.png">
+<style>
+  /* Inline, so the very first paint is already dark. The real stylesheet is
+     injected by JS in dev and linked from the build, and either way there is a
+     moment before it applies — without this the browser paints white first.
+     These must stay in step with the same rules in src/styles.css. */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #0b0720;
+  }
+  body {
+    color: #f2ecff;
+    font-family: "Trebuchet MS", "Segoe UI", system-ui, -apple-system, sans-serif;
+  }
+  /* Hidden until src/styles.css arrives and shows it, so the page never flashes
+     its raw, unstyled contents (the decor emoji especially). */
+  #stage { visibility: hidden; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <span class="decor d1">⛳</span>
+  <span class="decor d2">🎈</span>
+  <span class="decor d3">🏌️</span>
+  <span class="decor d4">🎈</span>
+
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="pregame">
+    <div class="group">
+      <span class="pill lvl" id="level" hidden>LVL 1</span>
+      <span class="pill" id="score">⛳ 0 / 5</span>
+      <span class="pill pts" id="points" hidden>0 pts</span>
+    </div>
+    <div class="group">
+      <span class="pill" id="lives">❤️❤️❤️</span>
+      <button id="muteBtn" type="button" aria-label="Toggle sound">🔇</button>
+    </div>
+  </div>
+
+  <div id="banner" aria-live="polite">
+    <strong id="bannerTitle"></strong>
+    <span id="bannerSub"></span>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <a class="link back" href="/">← Arcade</a>
+    <canvas class="portrait idle" id="startPortrait" width="420" height="476"></canvas>
+    <p class="kicker">🎂 Happy Birthday 🎂</p>
+    <h1>Fore Ryan!</h1>
+    <p class="lead">Launch golf balls into the holes — dodge the trees and water!</p>
+    <div class="modes">
+      <button class="big" id="startBtn" type="button">Tee Off ⛳</button>
+      <button class="big alt" id="contestBtn" type="button">Contest Mode 🏆</button>
+    </div>
+    <button class="link" id="boardBtn" type="button">🏆 View the leaderboard</button>
+    <p class="sub" id="startHint"></p>
+  </div>
+
+  <div class="overlay" id="winScreen" hidden>
+    <canvas class="portrait party" id="winPortrait" width="420" height="476"></canvas>
+    <h1>🎉 Happy Birthday Ryan! 🎉</h1>
+    <p>Five holes, one very determined floating head. ⛳</p>
+    <div class="modes">
+      <button class="big" id="winBtn" type="button">Play Again</button>
+      <button class="big alt" id="winContestBtn" type="button">Contest Mode 🏆</button>
+      <button class="big alt" id="winHomeBtn" type="button">Back</button>
+    </div>
+    <p class="sub" id="winStats"></p>
+  </div>
+
+  <div class="overlay" id="loseScreen" hidden>
+    <canvas class="portrait dizzy" id="losePortrait" width="420" height="476"></canvas>
+    <h2>Shanked it! ⛳💥</h2>
+    <p>The hazards win this round. Take the drop and try again.</p>
+    <div class="modes">
+      <button class="big" id="loseBtn" type="button">Try Again</button>
+      <button class="big alt" id="loseContestBtn" type="button">Contest Mode 🏆</button>
+      <button class="big alt" id="loseHomeBtn" type="button">Back</button>
+    </div>
+    <p class="sub" id="loseStats"></p>
+  </div>
+
+  <div class="overlay" id="runScreen" hidden>
+    <p class="kicker">🏆 Contest Run</p>
+    <h1 id="runHeadline">0 points</h1>
+    <p class="sub" id="runStats"></p>
+
+    <form class="entry" id="submitForm">
+      <div class="fields">
+        <input id="nameInput" type="text" maxlength="20" placeholder="Your name"
+               autocomplete="name" autocapitalize="words" required>
+      </div>
+      <button class="big" id="submitBtn" type="submit">Post to Leaderboard 🏆</button>
+      <p class="fineprint">Only your best run is listed, so play as many times as
+        you like.</p>
+    </form>
+    <p class="sub" id="submitStatus" aria-live="polite"></p>
+    <ul class="scorecard" id="runBreakdown"></ul>
+
+    <div class="modes">
+      <button class="big" id="runAgainBtn" type="button">Play Again 🏆</button>
+      <button class="big alt" id="runBoardBtn" type="button">Standings</button>
+      <button class="big alt" id="runHomeBtn" type="button">Back</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="boardScreen" hidden>
+    <p class="kicker">🏆 Leaderboard</p>
+    <h1>Standings</h1>
+    <ol class="board" id="boardList"></ol>
+    <p class="sub" id="boardStatus" aria-live="polite"></p>
+    <button class="big alt" id="boardBackBtn" type="button">Back</button>
+  </div>
+</div>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>
