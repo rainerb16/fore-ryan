@@ -50,6 +50,9 @@ function poseOf(j: Jump): { x: number; y: number; angle: number } {
  */
 const ORBIT = { front: 1.3, behind: 0.7, above: 0.8 };
 
+/** Vertical field of view on a wide screen; tall screens widen it (see the resize). */
+const BASE_FOV = 50;
+
 /** Simulation seconds Ryan holds the telemark after touching down. */
 const TELEMARK_FOR = 1.2;
 
@@ -92,8 +95,19 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   const fireworks = buildFireworks(scene, lowPower);
   let spilled = false;
 
-  const camera = new PerspectiveCamera(50, 1, 0.5, 4000); // out to the far mountains
-  const renderer = createView(canvas, camera, (w, h) => bloom.resize(w, h));
+  const camera = new PerspectiveCamera(BASE_FOV, 1, 0.5, 4000); // out to the far mountains
+  /** 0 on a tall phone, 1 on a wide screen: how far ahead of Ryan the camera can afford to look. */
+  let wide = 1;
+  const renderer = createView(canvas, camera, (w, h) => {
+    bloom.resize(w, h);
+    const aspect = w / h;
+    wide = MathUtils.clamp((aspect - 0.6) / 0.7, 0, 1);
+    // On a tall screen, widen the view until enough of the hill is in frame
+    // side to side (about 38° either side), without going fish-eye.
+    const minHalfWidth = MathUtils.degToRad(38);
+    camera.fov = MathUtils.clamp(MathUtils.radToDeg(2 * Math.atan(Math.tan(minHalfWidth) / aspect)), BASE_FOV, 75);
+    camera.updateProjectionMatrix();
+  });
   // Only things brighter than white glow (lamps, floodlights, the tower's
   // lights, lit windows; see `glowing`), never lit snow or white paint.
   const bloom = createBloom(renderer, scene, camera, { strength: 0.8, radius: 0.55, threshold: 1, lowPower });
@@ -101,6 +115,14 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
 
   const camPos = new Vector3();
   const camLook = new Vector3();
+  /**
+   * Where the camera sits and looks, relative to Ryan. Smoothing these rather
+   * than the camera's world position keeps the easing between shots but never
+   * lets the camera fall behind him at speed.
+   */
+  const posOffset = new Vector3();
+  const lookOffset = new Vector3();
+  const ryanAt = new Vector3();
   const wantPos = new Vector3();
   const wantLook = new Vector3();
   const forward = new Vector3();
@@ -156,29 +178,34 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
         const steering = j.phase === "flight" && j.holding;
         orbit.yaw = MathUtils.damp(orbit.yaw, steering ? MathUtils.clamp(look.x * 2.6, -ORBIT.behind, ORBIT.front) : 0, 4, dt);
         orbit.pitch = MathUtils.damp(orbit.pitch, steering ? MathUtils.clamp(-look.y * 2, -0.25, ORBIT.above) : 0, 4, dt);
-        const [ox, oy, oz] = flying ? [9, 4, 24] : [4, 3, 16];
+        const [ox, oy, oz] = flying ? [MathUtils.lerp(4, 9, wide), 4, 24] : [MathUtils.lerp(1.5, 4, wide), 3, 16];
         const [c, s] = [Math.cos(orbit.yaw), Math.sin(orbit.yaw)];
         wantPos.set(x + ox * c + oz * s, y + oy + 22 * orbit.pitch, oz * c - ox * s);
         // The further round, the more the camera looks at Ryan himself rather than ahead of him.
         const onRyan = Math.min(1, (Math.abs(orbit.yaw) + Math.abs(orbit.pitch)) / 0.8);
-        wantLook.set(
-          MathUtils.lerp(x + (flying ? 14 : 6), x, onRyan),
-          MathUtils.lerp(y - (flying ? 6 : 1), y + 1, onRyan),
-          0,
-        );
+        // Looking ahead of him to where he's going, less so on a narrow screen.
+        const ahead = flying ? MathUtils.lerp(5, 14, wide) : MathUtils.lerp(1.5, 6, wide);
+        const below = flying ? MathUtils.lerp(2, 6, wide) : 1;
+        wantLook.set(MathUtils.lerp(x + ahead, x, onRyan), MathUtils.lerp(y - below, y + 1, onRyan), 0);
       }
+      ryanAt.set(x, y, 0);
+      wantPos.sub(ryanAt);
+      wantLook.sub(ryanAt);
       if (first) {
-        camPos.copy(wantPos);
-        camLook.copy(wantLook);
+        posOffset.copy(wantPos);
+        lookOffset.copy(wantLook);
         first = false;
       }
       const follow = sweep < 1 ? 8 : 5;
       const orbiting = Math.abs(orbit.yaw) > 0.02 || Math.abs(orbit.pitch) > 0.02;
-      camPos.x = MathUtils.damp(camPos.x, wantPos.x, follow, dt);
-      camPos.y = MathUtils.damp(camPos.y, wantPos.y, follow, dt);
-      camPos.z = MathUtils.damp(camPos.z, wantPos.z, sweep < 1 ? 8 : orbiting ? 5 : 2, dt);
-      camLook.x = MathUtils.damp(camLook.x, wantLook.x, 6, dt);
-      camLook.y = MathUtils.damp(camLook.y, wantLook.y, 6, dt);
+      posOffset.x = MathUtils.damp(posOffset.x, wantPos.x, follow, dt);
+      posOffset.y = MathUtils.damp(posOffset.y, wantPos.y, follow, dt);
+      posOffset.z = MathUtils.damp(posOffset.z, wantPos.z, sweep < 1 ? 8 : orbiting ? 5 : 2, dt);
+      lookOffset.x = MathUtils.damp(lookOffset.x, wantLook.x, 6, dt);
+      lookOffset.y = MathUtils.damp(lookOffset.y, wantLook.y, 6, dt);
+      lookOffset.z = wantLook.z;
+      camPos.copy(ryanAt).add(posOffset);
+      camLook.copy(ryanAt).add(lookOffset);
       // Never below the snow.
       camPos.y = Math.max(camPos.y, groundY(camPos.x, camPos.z) + 2.5);
       camera.position.copy(camPos);
