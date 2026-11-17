@@ -13,6 +13,7 @@ import { sfx } from "./audio";
 import type { Cue } from "./broken";
 import { applyLook } from "./look";
 import { buildPoster } from "./poster";
+import { buildProps } from "./props";
 import { buildRoom, TRIM_Y, WALL_Z } from "./room";
 import { seasonOf } from "./season";
 import { buildStorefront, FRONT_Z } from "./storefront";
@@ -135,6 +136,16 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
       )
     : null;
 
+  // The rest of the arcade floor at either end of the row: a claw machine and a
+  // pinball table past the poster, and a prize counter past the last machine.
+  const props = buildProps(scene, {
+    head: images.head,
+    wallZ: WALL_Z,
+    leftX: poster.position.x - 0.5,
+    rightX: xOf(specs.length - 1) + CABINET_WIDTH / 2,
+    frontZ: FRONT_Z,
+  });
+
   // The street outside, where a visit starts (once per visit; see main.ts).
   const storefront = startOutside ? buildStorefront(scene, { season, words: enterWords, lowPower }) : null;
   /** Outside waiting at the door, or walking in (seconds since the door was opened). */
@@ -142,6 +153,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
     storefront ? { phase: "outside" } : null;
   const fog = scene.fog instanceof Fog ? scene.fog : null;
   if (intro && fog) Object.assign(fog, FOG_OUTSIDE);
+  // Seen from the street, the room is dimmer, so the door's sign reads against it.
+  if (intro) room.setBrightness(0);
   /** How far back from the shop front the camera stands outside: enough to fit the door and windows. */
   let outsideDistance = 6;
 
@@ -151,8 +164,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
   const renderer = createView(canvas, camera, (w, h) => {
     const halfTan = Math.tan(MathUtils.degToRad(FOV / 2));
     distance = Math.max(3, (CABINET_WIDTH * 0.95) / (halfTan * (w / h)));
-    // Wide screens see the whole front; phones close in on the door and the windows beside it.
-    outsideDistance = Math.max(6, 2.1 / (halfTan * (w / h)));
+    // Close in, so the lit windows fill the view; phones frame the door and the windows' edges.
+    outsideDistance = Math.max(4.8, 1.75 / (halfTan * (w / h)));
     const wallDistance = distance + (ROW_Z - WALL_Z);
     room.fitSign(2 * wallDistance * halfTan * (w / h));
     look.resize(w, h);
@@ -246,6 +259,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
 
   function finishEntering(): void {
     intro = null;
+    room.setBrightness(1);
     if (fog) Object.assign(fog, FOG_INSIDE);
     onEntered();
   }
@@ -337,6 +351,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
       if (cues?.length) play(cues, i);
     });
     festive?.(time);
+    props(time);
 
     if (intro && storefront) {
       storefront.update(time, dt);
@@ -363,6 +378,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
           fog.near = MathUtils.lerp(FOG_OUTSIDE.near, FOG_INSIDE.near, walk);
           fog.far = MathUtils.lerp(FOG_OUTSIDE.far, FOG_INSIDE.far, walk);
         }
+        room.setBrightness(walk);
         if (t >= 1) {
           railX = xOf(playable[focus]);
           finishEntering();
