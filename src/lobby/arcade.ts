@@ -143,6 +143,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
     wallZ: WALL_Z,
     leftX: poster.position.x - 0.5,
     rightX: xOf(specs.length - 1) + CABINET_WIDTH / 2,
+    frontZ: FRONT_Z,
   });
 
   // The street outside, where a visit starts (once per visit; see main.ts).

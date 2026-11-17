@@ -1,14 +1,15 @@
-// The rest of the arcade floor, filling the room's empty ends so it reads as a
-// real arcade through the shop windows: a claw machine full of plush toys (and
-// a few Ryan plushies) at the far left, a pinball machine out on the floor, a
-// prize counter at the far right, and neon art on the wall. All kept clear of
-// the cabinet row and of the camera's path in from the door.
+// The rest of the arcade floor, filling the room so it reads as a real arcade
+// through the shop windows without looking like games you can't play: a claw
+// machine full of plush toys (and a few Ryan plushies), a prize counter, a snack
+// bar, café tables with food left on them, and neon art on the wall. All kept
+// clear of the cabinet row and of the camera's path in from the door.
 
 import {
   AdditiveBlending,
   BoxGeometry,
   type CanvasTexture,
   Color,
+  ConeGeometry,
   CylinderGeometry,
   Group,
   Mesh,
@@ -19,6 +20,7 @@ import {
   SphereGeometry,
   Sprite,
   SpriteMaterial,
+  TorusGeometry,
   type Texture,
 } from "three";
 import { contactShadow, lightPool, paint } from "./textures";
@@ -35,6 +37,8 @@ export interface PropsOptions {
   wallZ: number;
   leftX: number;
   rightX: number;
+  /** Where the shop front is: the strip just inside its windows gets the front-of-house machines. */
+  frontZ: number;
 }
 
 const matte = (color: string, roughness = 0.8): MeshStandardMaterial => new MeshStandardMaterial({ color, roughness });
@@ -213,98 +217,6 @@ function clawMachine(head: HTMLImageElement | null): { group: Group; update: (ti
   };
 }
 
-// --- the pinball machine ------------------------------------------------------------------
-
-function pinball(): { group: Group; update: (time: number) => void } {
-  const g = new Group();
-  const W = 0.72;
-  const L = 1.35;
-  const body = matte("#1d1830", 0.4);
-  const chrome = new MeshStandardMaterial({ color: "#cfd2dc", metalness: 0.95, roughness: 0.2 });
-  // Legs, the cabinet, and the playfield tilted up towards the back.
-  for (const x of [-W / 2 + 0.05, W / 2 - 0.05]) for (const z of [-L / 2 + 0.06, L / 2 - 0.06]) g.add(box(0.05, 0.75, 0.05, chrome, x, 0.375, z));
-  const table = new Group();
-  table.position.y = 0.88;
-  table.rotation.x = -0.12; // higher at the back
-  table.add(box(W, 0.26, L, body, 0, 0, 0));
-  // The playfield art, bright and busy, with bumpers and lights.
-  const field = paint(256, 480, (ctx) => {
-    const sky = ctx.createLinearGradient(0, 0, 0, 480);
-    sky.addColorStop(0, "#3a1670");
-    sky.addColorStop(1, "#0f2a5c");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, 256, 480);
-    for (let i = 0; i < 40; i++) {
-      ctx.fillStyle = ["#ff4fb8", "#ffd23b", "#36e2ff", "#5ee6a8"][i % 4];
-      ctx.globalAlpha = 0.6;
-      ctx.beginPath();
-      ctx.arc((i * 97) % 256, (i * 53) % 400 + 20, 4 + (i % 3) * 3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = "#ffd23b";
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(30, 400);
-    ctx.lineTo(110, 450);
-    ctx.moveTo(226, 400);
-    ctx.lineTo(146, 450);
-    ctx.stroke();
-  });
-  const playfield = new Mesh(new PlaneGeometry(W - 0.08, L - 0.08), new MeshBasicMaterial({ map: field, color: "#a0a0a0" }));
-  playfield.rotation.x = -Math.PI / 2;
-  playfield.position.y = 0.131;
-  table.add(playfield);
-  const lights: MeshBasicMaterial[] = [];
-  for (const [x, z, c] of [[-0.15, -0.35, "#ff4fb8"], [0.12, -0.42, "#36e2ff"], [0, -0.2, "#ffd23b"]] as const) {
-    const bumper = new Mesh(new CylinderGeometry(0.06, 0.06, 0.07, 16), lit(c, 1.2));
-    bumper.position.set(x, 0.17, z);
-    table.add(bumper);
-    lights.push(bumper.material as MeshBasicMaterial);
-  }
-  const ball = new Mesh(new SphereGeometry(0.022, 12, 8), chrome);
-  ball.position.set(0.1, 0.16, 0.25);
-  table.add(ball);
-  // Glass over the playfield.
-  const glassTop = new Mesh(new PlaneGeometry(W - 0.04, L - 0.04), new MeshStandardMaterial({ color: "#000", transparent: true, opacity: 0.15, metalness: 1, roughness: 0.05, depthWrite: false }));
-  glassTop.rotation.x = -Math.PI / 2;
-  glassTop.position.y = 0.15;
-  table.add(glassTop);
-  g.add(table);
-
-  // The backbox at the far end, its screen flashing RYAN.
-  const backbox = box(W, 0.62, 0.16, body, 0, 1.36, -L / 2 - 0.02);
-  g.add(backbox);
-  const screen = paint(256, 200, (ctx) => {
-    ctx.fillStyle = "#14062a";
-    ctx.fillRect(0, 0, 256, 200);
-    ctx.font = `bold 88px "Oswald", Impact, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#ffd23b";
-    ctx.shadowColor = "#ff4fb8";
-    ctx.shadowBlur = 20;
-    ctx.fillText("RYAN", 128, 86);
-    ctx.font = `bold 26px "Courier New", monospace`;
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#36e2ff";
-    ctx.fillText("EXTRA BALL", 128, 158);
-  });
-  const backglass = new Mesh(new PlaneGeometry(W - 0.1, 0.5), new MeshBasicMaterial({ map: screen }));
-  backglass.position.set(0, 1.36, -L / 2 + 0.065);
-  g.add(backglass);
-  const flash = backglass.material;
-
-  grounding(g, W, L, "#7a4dff");
-  return {
-    group: g,
-    update(time) {
-      lights.forEach((m, i) => m.color.setScalar(Math.sin(time * 5 + i * 2) > 0 ? 1.4 : 0.35));
-      flash.color.setScalar(Math.sin(time * 3) > -0.6 ? 1 : 0.55);
-    },
-  };
-}
-
 // --- the prize counter ----------------------------------------------------------------------
 
 function prizeCounter(): Group {
@@ -365,6 +277,209 @@ function prizeShelves(): Group {
   return g;
 }
 
+// --- the snack bar and seating: what you see first through the windows -----------------------
+
+/** A painted sign or menu: a canvas shown lit, dimmed a touch so it doesn't bloom white. */
+function screenMesh(w: number, h: number, art: CanvasTexture, power = 0.85): Mesh<PlaneGeometry, MeshBasicMaterial> {
+  const m = new Mesh(new PlaneGeometry(w, h), new MeshBasicMaterial({ map: art }));
+  m.material.color.setScalar(power);
+  return m;
+}
+
+/** A snack counter: a popcorn machine and a soda fountain on top, a menu board and neon over it. */
+function snackBar(): Group {
+  const g = new Group();
+  const W = 2.0;
+  // The counter, its front striped like a cinema snack stand, with a lit edge.
+  const stripes = paint(256, 64, (ctx) => {
+    for (let x = 0; x < 256; x += 32) {
+      ctx.fillStyle = (x / 32) % 2 ? "#f2e9dc" : "#c8202b";
+      ctx.fillRect(x, 0, 32, 64);
+    }
+  });
+  const front = new MeshStandardMaterial({ map: stripes, color: "#9a9a9a", roughness: 0.6 });
+  g.add(box(W, 0.95, 0.6, front, 0, 0.475, 0));
+  g.add(box(W + 0.06, 0.05, 0.66, matte("#2c2230", 0.3), 0, 0.975, 0));
+  g.add(box(W, 0.03, 0.02, lit("#ffd166", 0.6), 0, 0.94, 0.31));
+
+  // A popcorn machine: a glass box of popcorn under a red top.
+  const pop = new Group();
+  pop.add(box(0.42, 0.08, 0.36, matte("#c8202b", 0.4), 0, 0.04, 0));
+  const glass = new MeshStandardMaterial({ color: "#fff6dc", transparent: true, opacity: 0.12, roughness: 0.05, metalness: 0.6, depthWrite: false });
+  const pane = new Mesh(new BoxGeometry(0.4, 0.42, 0.34), glass);
+  pane.position.y = 0.29;
+  pop.add(pane);
+  const corn = matte("#f3d77a", 0.95);
+  for (let i = 0; i < 40; i++) {
+    const kernel = new Mesh(new SphereGeometry(0.022, 6, 5), corn);
+    kernel.position.set(((i * 37) % 34) / 100 - 0.17, 0.1 + ((i * 13) % 12) / 100, ((i * 23) % 28) / 100 - 0.14);
+    pop.add(kernel);
+  }
+  pop.add(box(0.42, 0.12, 0.36, matte("#c8202b", 0.4), 0, 0.56, 0));
+  const popLight = new Mesh(new PlaneGeometry(0.36, 0.08), new MeshBasicMaterial({ map: neonWord("POPCORN", "#ffd166"), transparent: true, blending: AdditiveBlending, depthWrite: false }));
+  popLight.material.color.setScalar(0.6);
+  popLight.position.set(0, 0.56, 0.185);
+  pop.add(popLight);
+  pop.position.set(-0.55, 1.0, -0.02);
+  g.add(pop);
+
+  // A soda fountain with its taps, and a stack of cups.
+  g.add(box(0.5, 0.45, 0.3, matte("#20304a", 0.4), 0.5, 1.225, -0.08));
+  const label = paint(200, 80, (ctx) => {
+    ctx.fillStyle = "#1f5fd4";
+    ctx.fillRect(0, 0, 200, 80);
+    ctx.font = `bold 44px "Oswald", Impact, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText("SODA", 100, 42);
+  });
+  const soda = screenMesh(0.4, 0.16, label, 0.7);
+  soda.position.set(0.5, 1.32, 0.075);
+  g.add(soda);
+  for (let i = 0; i < 3; i++) g.add(box(0.03, 0.06, 0.04, matte("#bbbbc4", 0.3), 0.36 + i * 0.14, 1.1, 0.08));
+  for (let i = 0; i < 4; i++) {
+    const cup = new Mesh(new CylinderGeometry(0.045, 0.035, 0.1, 12), matte("#f2e9dc", 0.6));
+    cup.position.set(0.88, 1.05 + i * 0.03, 0.05);
+    g.add(cup);
+  }
+
+  // The menu board and the neon over the counter.
+  const menu = paint(512, 256, (ctx) => {
+    ctx.fillStyle = "#14101c";
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.strokeStyle = "#ffd166";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(10, 10, 492, 236);
+    ctx.font = `bold 40px "Oswald", Impact, sans-serif`;
+    ctx.textBaseline = "middle";
+    const items = [["PIZZA", "$3"], ["HOT DOGS", "$2"], ["NACHOS", "$3"], ["SODA", "$1"]];
+    items.forEach(([item, price], i) => {
+      const y = 50 + i * 50;
+      ctx.textAlign = "left";
+      ctx.fillStyle = "#f4f1ea";
+      ctx.fillText(item, 40, y);
+      ctx.textAlign = "right";
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText(price, 472, y);
+    });
+  });
+  const board = screenMesh(1.0, 0.5, menu, 0.6);
+  board.position.set(0, 1.95, -0.25);
+  g.add(board);
+  const sign = glow(neonWord("SNACKS", "#ff7a3d"), 1.1, 0.31, 0.5);
+  sign.position.set(0, 2.42, -0.25);
+  g.add(sign);
+  grounding(g, W, 0.6, "#ff7a3d");
+  return g;
+}
+
+/** A café table and its stools, with somebody's food left on it. `menu` picks which food. */
+function cafeTable(menu: number): Group {
+  const g = new Group();
+  const chrome = new MeshStandardMaterial({ color: "#cfd2dc", metalness: 0.9, roughness: 0.25 });
+  // A round red-topped table on a single chrome pole.
+  g.add(new Mesh(new CylinderGeometry(0.25, 0.3, 0.03, 20), chrome));
+  const pole = new Mesh(new CylinderGeometry(0.035, 0.035, 0.72, 10), chrome);
+  pole.position.y = 0.37;
+  g.add(pole);
+  const top = new Mesh(new CylinderGeometry(0.42, 0.42, 0.04, 28), matte("#c8202b", 0.35));
+  top.position.y = 0.75;
+  g.add(top);
+  const rim = new Mesh(new TorusGeometry(0.42, 0.012, 6, 32), chrome);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.75;
+  g.add(rim);
+  // Stools round it, each a little turned out.
+  [0.4, 2.5, 4.4].forEach((a, i) => {
+    const stool = new Group();
+    stool.add(new Mesh(new CylinderGeometry(0.03, 0.03, 0.45, 8), chrome));
+    stool.children[0].position.y = 0.225;
+    const seat = new Mesh(new CylinderGeometry(0.17, 0.17, 0.06, 18), matte(["#1f5fd4", "#f2c230", "#5ee6a8"][(i + menu) % 3], 0.4));
+    seat.position.y = 0.47;
+    stool.add(seat);
+    stool.position.set(Math.cos(a) * 0.62, 0, Math.sin(a) * 0.62);
+    g.add(stool);
+  });
+
+  // The food: a pizza in its box, sodas with straws, popcorn, or nachos.
+  const y = 0.77;
+  const sodaCup = (x: number, z: number, colour: string): void => {
+    const cup = new Mesh(new CylinderGeometry(0.045, 0.035, 0.13, 12), matte(colour, 0.5));
+    cup.position.set(x, y + 0.065, z);
+    g.add(cup);
+    const straw = new Mesh(new CylinderGeometry(0.006, 0.006, 0.12, 6), matte("#f4f1ea", 0.4));
+    straw.position.set(x + 0.01, y + 0.17, z);
+    straw.rotation.z = 0.2;
+    g.add(straw);
+  };
+  if (menu % 3 === 0) {
+    // An open pizza box with a pizza missing two slices.
+    g.add(box(0.36, 0.02, 0.36, matte("#c9a26b", 0.9), -0.05, y + 0.01, 0));
+    const lid = box(0.36, 0.36, 0.02, matte("#c9a26b", 0.9), -0.05, y + 0.18, -0.18);
+    lid.rotation.x = -0.3;
+    g.add(lid);
+    const pizza = new Mesh(new CylinderGeometry(0.15, 0.15, 0.015, 24, 1, false, 0, Math.PI * 1.55), matte("#e8b04a", 0.8));
+    pizza.position.set(-0.05, y + 0.03, 0);
+    g.add(pizza);
+    for (let i = 0; i < 7; i++) {
+      const pep = new Mesh(new CylinderGeometry(0.018, 0.018, 0.006, 10), matte("#b0262a", 0.6));
+      const a = i * 0.7;
+      pep.position.set(-0.05 + Math.cos(a) * 0.09, y + 0.04, Math.sin(a) * 0.09);
+      g.add(pep);
+    }
+    sodaCup(0.22, 0.15, "#c8202b");
+    sodaCup(0.25, -0.12, "#1f5fd4");
+  } else if (menu % 3 === 1) {
+    // A striped popcorn bucket, overflowing, and a soda.
+    const bucket = new Mesh(new CylinderGeometry(0.09, 0.065, 0.2, 16), new MeshStandardMaterial({
+      map: paint(64, 32, (ctx) => {
+        for (let x = 0; x < 64; x += 8) {
+          ctx.fillStyle = (x / 8) % 2 ? "#f2e9dc" : "#c8202b";
+          ctx.fillRect(x, 0, 8, 32);
+        }
+      }),
+      roughness: 0.7,
+    }));
+    bucket.position.set(-0.08, y + 0.1, 0.02);
+    g.add(bucket);
+    for (let i = 0; i < 12; i++) {
+      const kernel = new Mesh(new SphereGeometry(0.022, 6, 5), matte("#f3d77a", 0.95));
+      kernel.position.set(-0.08 + ((i * 37) % 14) / 100 - 0.07, y + 0.21 + ((i * 7) % 5) / 100, 0.02 + ((i * 23) % 14) / 100 - 0.07);
+      g.add(kernel);
+    }
+    sodaCup(0.18, 0.05, "#5ee6a8");
+  } else {
+    // A basket of nachos with cheese, and two sodas.
+    g.add(box(0.26, 0.05, 0.18, matte("#c8202b", 0.6), 0, y + 0.025, 0));
+    for (let i = 0; i < 10; i++) {
+      const chip = new Mesh(new ConeGeometry(0.035, 0.008, 3), matte("#e8b04a", 0.8));
+      chip.position.set(((i * 37) % 20) / 100 - 0.1, y + 0.06 + (i % 3) * 0.008, ((i * 23) % 12) / 100 - 0.06);
+      chip.rotation.set(Math.PI / 2, i, 0);
+      g.add(chip);
+    }
+    const cheese = new Mesh(new SphereGeometry(0.06, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), matte("#f2b51c", 0.4));
+    cheese.scale.y = 0.4;
+    cheese.position.set(0, y + 0.07, 0);
+    g.add(cheese);
+    sodaCup(-0.24, 0.1, "#f2c230");
+    sodaCup(0.22, -0.1, "#c8202b");
+  }
+
+  // A warm pendant lamp hanging over the table.
+  const cord = new Mesh(new CylinderGeometry(0.005, 0.005, 1.4, 6), matte("#111", 0.5));
+  cord.position.y = 2.75;
+  g.add(cord);
+  const shade = new Mesh(new ConeGeometry(0.16, 0.14, 18, 1, true), new MeshStandardMaterial({ color: "#c8202b", roughness: 0.5, side: 2 }));
+  shade.position.y = 2.0;
+  g.add(shade);
+  const bulb = new Mesh(new SphereGeometry(0.045, 12, 8), lit("#ffd9a8", 0.9));
+  bulb.position.y = 1.95;
+  g.add(bulb);
+  grounding(g, 1.0, 1.0, "#ffb070");
+  return g;
+}
+
 export function buildProps(scene: Scene, o: PropsOptions): Props {
   // The claw machine against the wall at the far left, past the poster.
   const claw = clawMachine(o.head);
@@ -374,12 +489,10 @@ export function buildProps(scene: Scene, o: PropsOptions): Props {
   joystick.position.set(o.leftX - 0.7, 2.6, o.wallZ + 0.02);
   scene.add(joystick);
 
-  // The pinball machine out on the floor at the front left, turned towards the
-  // room, where the street can see it but the camera's rail can't.
-  const table = pinball();
-  table.group.position.set(o.leftX - 0.3, 0, o.wallZ + 2.9);
-  table.group.rotation.y = 0.5;
-  scene.add(table.group);
+  // A café table out on the floor at the left, where the street can see it but the camera's rail can't.
+  const sideTable = cafeTable(2);
+  sideTable.position.set(o.leftX - 0.3, 0, o.wallZ + 2.7);
+  scene.add(sideTable);
 
   // The prize counter at the far right, with its shelves and signs on the wall behind.
   const counter = prizeCounter();
@@ -395,14 +508,30 @@ export function buildProps(scene: Scene, o: PropsOptions): Props {
   highScore.position.set(o.rightX + 2.45, 2.55, o.wallZ + 0.02);
   scene.add(highScore);
 
+  // The snack bar and its tables, just inside the windows: seen from the street,
+  // behind the camera once inside, and clear of the lane in from the door.
+  const snacks = snackBar();
+  snacks.position.set(-3.0, 0, o.frontZ - 1.55);
+  scene.add(snacks);
+  const tables = [
+    [-1.75, o.frontZ - 0.95, 1],
+    [2.0, o.frontZ - 1.0, 0],
+    [3.75, o.frontZ - 1.45, 1],
+  ].map(([x, z, menu]) => {
+    const t = cafeTable(menu);
+    t.position.set(x, 0, z);
+    t.rotation.y = x * 0.7;
+    scene.add(t);
+    return t;
+  });
+
   // None of it is a tap target: only the cabinets and Ryan's graffiti are.
-  for (const root of [claw.group, joystick, table.group, counter, shelves, prizes, highScore]) {
+  for (const root of [claw.group, joystick, sideTable, counter, shelves, prizes, highScore, snacks, ...tables]) {
     root.traverse((node) => (node.raycast = () => {}));
   }
 
   return (time) => {
     claw.update(time);
-    table.update(time);
     highScore.material.opacity = Math.sin(time * 19) > 0.97 ? 0.45 : 1;
   };
 }

@@ -168,6 +168,84 @@ function streetBlade(name: string): Mesh {
   return new Mesh(new BoxGeometry(0.9, 0.2, 0.02), material);
 }
 
+/**
+ * A street fire hydrant: a bolted base flange, a barrel with a raised band, a
+ * domed bonnet with the five-sided valve nut on top, two side hose outlets with
+ * chained caps, and the big pumper outlet on the front. Yellow, a little worn.
+ */
+function hydrant(winter: boolean): Group {
+  const g = new Group();
+  const paint_ = new MeshStandardMaterial({ color: "#e0a91c", roughness: 0.55, metalness: 0.25 });
+  const worn = new MeshStandardMaterial({ color: "#b8871a", roughness: 0.7, metalness: 0.3 });
+  const iron = new MeshStandardMaterial({ color: "#5a5652", roughness: 0.6, metalness: 0.6 });
+  const add = (mesh: Mesh, x: number, y: number, z: number): Mesh => {
+    mesh.position.set(x, y, z);
+    g.add(mesh);
+    return mesh;
+  };
+  const ring = (r: number, h: number, y: number, m = paint_, seg = 24): Mesh => add(new Mesh(new CylinderGeometry(r, r, h, seg), m), 0, y, 0);
+
+  // The ground flange, bolted down.
+  ring(0.17, 0.05, 0.025, worn);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    add(new Mesh(new CylinderGeometry(0.014, 0.014, 0.03, 6), iron), Math.cos(a) * 0.145, 0.06, Math.sin(a) * 0.145);
+  }
+  // The barrel, slightly narrower at the top, with a raised band and an upper flange.
+  add(new Mesh(new CylinderGeometry(0.105, 0.12, 0.46, 24), paint_), 0, 0.28, 0);
+  ring(0.125, 0.035, 0.2);
+  ring(0.13, 0.04, 0.52, worn);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.3;
+    add(new Mesh(new CylinderGeometry(0.011, 0.011, 0.05, 6), iron), Math.cos(a) * 0.118, 0.54, Math.sin(a) * 0.118);
+  }
+  // The bonnet: a dome, then the valve nut, five-sided so only a hydrant wrench fits.
+  add(new Mesh(new SphereGeometry(0.115, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), paint_), 0, 0.54, 0);
+  ring(0.045, 0.04, 0.665, worn, 24);
+  ring(0.032, 0.05, 0.705, iron, 5);
+
+  // Two side hose outlets, each with a cap (a nut on its face) and a chain looping back.
+  for (const side of [-1, 1]) {
+    const outlet = new Mesh(new CylinderGeometry(0.042, 0.048, 0.1, 18), paint_);
+    outlet.rotation.z = Math.PI / 2;
+    add(outlet, side * 0.15, 0.38, 0);
+    const cap = new Mesh(new CylinderGeometry(0.05, 0.05, 0.035, 18), worn);
+    cap.rotation.z = Math.PI / 2;
+    add(cap, side * 0.205, 0.38, 0);
+    const nut = new Mesh(new CylinderGeometry(0.022, 0.022, 0.025, 5), iron);
+    nut.rotation.z = Math.PI / 2;
+    add(nut, side * 0.232, 0.38, 0);
+    // The chain: a few small links hanging in a curve back to the barrel.
+    for (let k = 0; k < 5; k++) {
+      const t = k / 4;
+      const link = new Mesh(new TorusGeometry(0.008, 0.0025, 4, 8), iron);
+      link.rotation.y = k % 2 ? Math.PI / 2 : 0;
+      add(link, side * (0.2 - t * 0.08), 0.34 - Math.sin(t * Math.PI) * 0.05, 0.03);
+    }
+  }
+  // The pumper outlet on the front, bigger, with its own cap and nut.
+  const pumper = new Mesh(new CylinderGeometry(0.06, 0.068, 0.09, 20), paint_);
+  pumper.rotation.x = Math.PI / 2;
+  add(pumper, 0, 0.34, 0.14);
+  const pumperCap = new Mesh(new CylinderGeometry(0.072, 0.072, 0.04, 20), worn);
+  pumperCap.rotation.x = Math.PI / 2;
+  add(pumperCap, 0, 0.34, 0.2);
+  const pumperNut = new Mesh(new CylinderGeometry(0.026, 0.026, 0.03, 5), iron);
+  pumperNut.rotation.x = Math.PI / 2;
+  add(pumperNut, 0, 0.34, 0.23);
+
+  // A dusting of snow on the bonnet, in season.
+  if (winter) {
+    const snow = new Mesh(new SphereGeometry(0.1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), new MeshStandardMaterial({ color: "#8d909e", roughness: 1 }));
+    snow.scale.y = 0.45;
+    add(snow, 0, 0.6, 0);
+  }
+
+  g.position.set(1.75, 0, 1.15); // in front of the right window, inside even a phone's view
+  g.rotation.y = -0.4; // turned a little, so its side outlets show
+  return g;
+}
+
 /** What stands on the pavement: potted trees by the door, a hydrant, and a signpost. */
 function streetFurniture(winter: boolean): Group[] {
   const parts: Group[] = [];
@@ -185,37 +263,8 @@ function streetFurniture(winter: boolean): Group[] {
     parts.push(g);
   }
 
-  // A red fire hydrant by the kerb.
-  {
-    const g = new Group();
-    const red = new MeshStandardMaterial({ color: "#c8202b", roughness: 0.45, metalness: 0.2 });
-    const body = new Mesh(new CylinderGeometry(0.11, 0.13, 0.5, 16), red);
-    body.position.y = 0.27;
-    g.add(body);
-    const dome = new Mesh(new SphereGeometry(0.115, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), red);
-    dome.position.y = 0.52;
-    g.add(dome);
-    const cap = new Mesh(new CylinderGeometry(0.03, 0.03, 0.04, 8), red);
-    cap.position.y = 0.64;
-    g.add(cap);
-    for (const side of [-1, 1]) {
-      const nozzle = new Mesh(new CylinderGeometry(0.045, 0.045, 0.12, 10), red);
-      nozzle.rotation.z = Math.PI / 2;
-      nozzle.position.set(side * 0.15, 0.36, 0);
-      g.add(nozzle);
-    }
-    const base = new Mesh(new CylinderGeometry(0.16, 0.17, 0.05, 16), red);
-    base.position.y = 0.025;
-    g.add(base);
-    if (winter) {
-      const snow = new Mesh(new SphereGeometry(0.1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), new MeshStandardMaterial({ color: "#8d909e", roughness: 1 }));
-      snow.position.y = 0.56;
-      snow.scale.y = 0.6;
-      g.add(snow);
-    }
-    g.position.set(1.75, 0, 1.15); // in front of the right window, inside even a phone's view
-    parts.push(g);
-  }
+  // A yellow fire hydrant by the kerb, the classic three-outlet kind.
+  parts.push(hydrant(winter));
 
   // A street-name signpost at the corner: Ryan Ave crossing Arcade St.
   {
@@ -353,7 +402,7 @@ export function buildStorefront(scene: Scene, o: StorefrontOptions): Storefront 
   front.add(name);
   const open = glow(neonWord("OPEN", "#ff3b4f"), 0.9, 0.34);
   open.material.color.setScalar(0.6);
-  open.position.set(-2.6, 2.25, -0.05);
+  open.position.set(-1.55, 2.35, -0.05); // by the door, clear of the snack bar's neon behind
   front.add(open);
 
   // A warm lamp over the door, lighting the step and the pavement.
