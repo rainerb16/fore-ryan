@@ -228,7 +228,9 @@ A glowing gold line crosses the landing hill at 130 m, with a lit star beside it
 past it for the payoff: "Happy Holidays!", fireworks over Calgary, and "Jingle Bells" (1857, public
 domain). It takes a good or perfect take-off and a long glide, and a late take-off can never
 reach it; `test/skijump.test.mjs` holds it to that. It's `CHRISTMAS_LINE_M` in
-`rules/rules.ts`, and it changes nothing about the score.
+`rules/rules.ts`, and it changes nothing about the score. Any jump that misses the payoff
+gets a gold hint on its result screen saying how far short it fell (or that a crash past the
+line needs a clean landing), so players know there's something to reach.
 
 ### Sound
 

@@ -135,8 +135,23 @@ async function boot(): Promise<void> {
         `${jump.quality} take-off · ${christmas && isBest ? "new personal best!" : `best ${metres(best())}`}`;
       if (isBest && !christmas) sfx.best();
     }
+    showHint(d);
     resultScreen.hidden = false;
     void armPost(jump, token, openPodium);
+  }
+
+  /** Tells a jump that missed the payoff that there is one, and how close it came. */
+  function showHint(d: number): void {
+    const hint = $("resultHint");
+    hint.hidden = christmas;
+    if (christmas) return;
+    if (jump.crashed) {
+      hint.textContent = d >= CHRISTMAS_LINE_M
+        ? "🎁 You flew past the gold line! Land it cleanly for a holiday surprise."
+        : `🎁 Land cleanly past the gold line (${CHRISTMAS_LINE_M} m) for a holiday surprise.`;
+    } else {
+      hint.textContent = `🎁 ${Math.max(0.1, CHRISTMAS_LINE_M - d).toFixed(1)} m short of the gold line. Land past it for a holiday surprise!`;
+    }
   }
 
   /** Callouts as the jump moves from one phase to the next. */

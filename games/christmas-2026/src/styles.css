@@ -107,6 +107,18 @@ body {
 .kicker { margin: 0; color: var(--green); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; font-size: 14px; }
 .sub { margin: 0; color: var(--muted); }
 .gold { color: var(--gold); }
+/* Points a jump that missed the payoff at the gold line. */
+.hint {
+  margin: 0;
+  max-width: 380px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 209, 102, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 209, 102, 0.1);
+  color: var(--gold);
+  font-weight: 700;
+}
+.hint[hidden] { display: none; }
 .big-number { margin: 0; font-size: clamp(48px, 14vw, 96px); font-weight: 900; font-variant-numeric: tabular-nums; }
 
 .how {
