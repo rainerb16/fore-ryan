@@ -1,6 +1,18 @@
 // Three.js plumbing every 3D page needs, kept to what two pages actually share.
 
-import { ACESFilmicToneMapping, PCFShadowMap, PerspectiveCamera, WebGLRenderer } from "three";
+import {
+  ACESFilmicToneMapping,
+  PCFShadowMap,
+  Vector2,
+  WebGLRenderer,
+  type Camera,
+  type PerspectiveCamera,
+  type Scene,
+} from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 
 /** Retina phones would otherwise render 3–4x the pixels for little visible gain. */
 export const MAX_PIXEL_RATIO = 1.5;
@@ -51,6 +63,37 @@ export function runLoop(frame: (time: number, dt: number) => void): void {
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
+}
+
+export interface Bloom {
+  render(): void;
+  resize(width: number, height: number): void;
+}
+
+/**
+ * Renders through a bloom pass, so anything brighter than `threshold` glows:
+ * neon, lit windows, fairy lights. Call `resize` from createView's onResize.
+ */
+export function createBloom(
+  renderer: WebGLRenderer,
+  scene: Scene,
+  camera: Camera,
+  opts: { strength: number; radius: number; threshold: number; lowPower: boolean },
+): Bloom {
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new Vector2(1, 1), opts.strength, opts.radius, opts.threshold);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+  return {
+    render: () => composer.render(),
+    resize(width, height) {
+      composer.setPixelRatio(renderer.getPixelRatio());
+      composer.setSize(width, height);
+      // Bloom is blurry by nature; phones can compute it at half size.
+      if (opts.lowPower) bloom.resolution.set(width / 2, height / 2);
+    },
+  };
 }
 
 export const prefersReducedMotion = (): boolean =>

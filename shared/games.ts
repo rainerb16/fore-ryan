@@ -17,6 +17,15 @@ export interface GameEntry {
 
 export const GAMES: readonly GameEntry[] = [
   {
+    id: "christmas-2026",
+    title: "Ryan Ski Jump",
+    occasion: "Christmas",
+    year: 2026,
+    released: "2026-12-24",
+    sort: "desc",
+    path: "/games/christmas-2026/",
+  },
+  {
     id: "birthday-2026",
     title: "Fore Ryan!",
     occasion: "Birthday",

@@ -5,6 +5,7 @@
 import { gameById, type GameEntry } from "../../shared/games";
 import { validateRun } from "../../games/birthday-2026/rules/scoring";
 import type { RunSummary } from "../../games/birthday-2026/rules/types";
+import { judgeJump, type JumpDetails } from "../../games/christmas-2026/rules";
 import type { RunColumns } from "./_db";
 
 /**
@@ -17,8 +18,8 @@ export type Verdict =
 
 export interface ServerGame {
   entry: GameEntry;
-  /** Env var holding the contest's closing time, as an ISO timestamp. */
-  closesAtVar: string;
+  /** Env var holding the contest's closing time, as an ISO timestamp. Omit for a game whose board never closes. */
+  closesAtVar?: string;
   judge(details: unknown): Verdict;
 }
 
@@ -46,6 +47,31 @@ const RULES: Record<string, Omit<ServerGame, "entry">> = {
       };
     },
   },
+  "christmas-2026": {
+    // No closing date: the podium stays open.
+    judge(details) {
+      const verdict = judgeJump(details);
+      if (!verdict.ok) return verdict;
+      const d = details as JumpDetails;
+      return {
+        ok: true,
+        points: verdict.points,
+        durationMs: verdict.durationMs,
+        flagged: verdict.flagged,
+        // Only the known stats are kept, plus why a flagged jump was flagged, for whoever reviews it.
+        columns: {
+          details: {
+            distance_m: d.distance_m,
+            takeoff_quality: d.takeoff_quality,
+            crashed: d.crashed,
+            best_glide_ms: d.best_glide_ms,
+            duration_ms: d.duration_ms,
+            ...(verdict.flagged ? { flag_reasons: verdict.reasons } : {}),
+          },
+        },
+      };
+    },
+  },
 };
 
 export function serverGame(id: unknown): ServerGame | null {
@@ -59,6 +85,7 @@ export const LEGACY_GAME = "birthday-2026";
 
 /** When this game's contest closes, or null if it runs indefinitely. */
 export function contestEndsAt(game: ServerGame): Date | null {
+  if (!game.closesAtVar) return null;
   const raw = process.env[game.closesAtVar];
   if (!raw) return null;
   const when = new Date(raw);

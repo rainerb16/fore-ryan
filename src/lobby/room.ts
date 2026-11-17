@@ -19,6 +19,8 @@ import {
 import { carpet, lightPool, neonSign, wallPanels } from "./textures";
 
 export const WALL_Z = -1.2;
+/** The lower neon trim, just above the cabinet tops. */
+export const TRIM_Y = 2.0;
 const NIGHT = "#07040f";
 
 const SIGN_WIDTH = 3.2;
@@ -71,7 +73,7 @@ export function buildRoom(scene: Scene, spotXs: number[], lowPower: boolean): Ro
   sign.material.color.setScalar(0.55);
 
   // Neon tube trims running along the wall.
-  for (const [y, colour] of [[3.1, "#36e2ff"], [2.0, "#8a5cff"]] as const) {
+  for (const [y, colour] of [[3.1, "#36e2ff"], [TRIM_Y, "#8a5cff"]] as const) {
     const material = new MeshBasicMaterial({ color: colour });
     material.color.multiplyScalar(0.45); // a glow, not a light source
     const tube = new Mesh(new CylinderGeometry(0.018, 0.018, 36, 6), material);

@@ -484,3 +484,46 @@ test("the standings only list the requested game", async () => {
 test("the standings refuse a game they do not know", async () => {
   assert.equal((await getBoard("?game=halloween-1999")).status, 400);
 });
+
+// --- the ski jump -------------------------------------------------------------
+
+const jump = (over = {}) => ({
+  distance_m: 118.4,
+  takeoff_quality: "good",
+  crashed: false,
+  best_glide_ms: 1900,
+  duration_ms: 21000,
+  ...over,
+});
+
+const jumpSubmission = (over = {}, details = {}) =>
+  goodSubmission({ gameId: "christmas-2026", token: tokenIssuedAgo(120000, "christmas-2026"), details: jump(details), ...over });
+
+test("a ski jump is scored from its distance, in centimetres, and stored with its stats", async () => {
+  const res = await post(jumpSubmission({}, { points: 99999999 }));
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).points, 11840);
+  assert.equal(runs[0].game_id, "christmas-2026");
+  assert.equal(runs[0].points, 11840, "the claimed points are ignored");
+  assert.equal(runs[0].flagged, false);
+  assert.equal(runs[0].level_reached, undefined, "golf's columns stay empty");
+  assert.deepEqual(runs[0].details, jump());
+});
+
+test("a crashed jump does not count", async () => {
+  assert.equal((await post(jumpSubmission({}, { crashed: true }))).status, 422);
+  assert.equal(runs.length, 0);
+});
+
+test("a jump with missing stats is refused", async () => {
+  assert.equal((await post(jumpSubmission({}, { distance_m: "far" }))).status, 422);
+  assert.equal((await post(jumpSubmission({}, { takeoff_quality: "amazing" }))).status, 422);
+  assert.equal(runs.length, 0);
+});
+
+test("an impossible jump is kept for review, flagged with the reason", async () => {
+  const res = await post(jumpSubmission({}, { distance_m: 240, takeoff_quality: "late" }));
+  assert.equal(res.status, 200);
+  assert.equal(runs[0].flagged, true);
+  assert.match(runs[0].details.flag_reasons.join(" "), /late take-off/);
+});
