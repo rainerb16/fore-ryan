@@ -203,10 +203,20 @@ body.webgl #credit {
 }
 
 @media (max-width: 600px) {
-  /* Phones: the controls fill the bottom, so top left, under the mute button. */
-  body.webgl #credit { top: calc(58px + env(safe-area-inset-top)); bottom: auto; left: 14px; }
-  #credit small { font-size: 10px; }
-  #credit span { font-size: 30px; }
+  /* Phones: one small line signed under the buttons, where the wall art can't be covered. */
+  body.webgl #credit {
+    left: 0;
+    right: 0;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 2; /* over the controls' dark fade */
+    flex-direction: row;
+    justify-content: center;
+    align-items: baseline;
+    gap: 6px;
+  }
+  body.webgl #controls { padding-bottom: calc(36px + env(safe-area-inset-bottom)); }
+  #credit small { font-size: 9px; letter-spacing: 0.25em; }
+  #credit span { font-size: 20px; transform: rotate(-4deg); }
 }
 
 /* --- sound ------------------------------------------------------------------ */
