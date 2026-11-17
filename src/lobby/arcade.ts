@@ -143,7 +143,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
 
   let focus = 0; // index into playable
   let railX = xOf(playable[0]);
-  let launching: { from: Vector3; to: Vector3; look: Vector3; started: number } | null = null;
+  /** The zoom into a game's screen: the game it's going to is fixed when it starts. */
+  let launching: { game: GameEntry; from: Vector3; to: Vector3; look: Vector3; started: number } | null = null;
 
   function setFocus(next: number, quiet = false): void {
     const was = focus;
@@ -185,17 +186,20 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     }
     const look = cabinet.screenMesh.getWorldPosition(new Vector3());
     const normal = new Vector3(0, 0, 1).transformDirection(cabinet.screenMesh.matrixWorld);
-    launching = { from: camera.position.clone(), to: look.clone().addScaledVector(normal, 0.32), look, started: -1 };
+    launching = { game, from: camera.position.clone(), to: look.clone().addScaledVector(normal, 0.32), look, started: -1 };
   }
 
   // --- input ------------------------------------------------------------------
 
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLElement && e.target.closest("a, button")) return; // let links work
+    if (launching) return; // on the way into a game: nothing else now
     if (e.key === "ArrowLeft") setFocus(focus - 1);
     else if (e.key === "ArrowRight") setFocus(focus + 1);
-    else if (e.key === "Enter" || e.key === " ") launch();
-    else return;
+    else if (e.key === "Enter" || e.key === " ") {
+      // One press, one kick: a held key would otherwise kick 30 times a second.
+      if (!e.repeat) launch();
+    } else return;
     e.preventDefault();
   });
 
@@ -205,7 +209,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
 
   canvas.addEventListener("pointerdown", (e) => (downAt = { x: e.clientX, y: e.clientY }));
   canvas.addEventListener("pointerup", (e) => {
-    if (!downAt) return;
+    if (!downAt || launching) return;
     const dx = e.clientX - downAt.x;
     const dy = e.clientY - downAt.y;
     downAt = null;
@@ -267,8 +271,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       lookAt.lerp(launching.look, ease);
       camera.lookAt(lookAt);
       if (t === 1) {
-        const game = cabinets[playable[focus]].game;
-        if (game) window.location.assign(game.path);
+        window.location.assign(launching.game.path);
         launching = null;
       }
     } else {

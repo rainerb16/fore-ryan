@@ -1,7 +1,7 @@
 // The cabinets as a plain list of links. With WebGL it is visually hidden and
 // serves keyboard and screen-reader users; without it, it is the lobby.
 
-import type { GameEntry } from "../../shared/games";
+import { formatScore, type GameEntry } from "../../shared/games";
 import type { LeaderboardEntry } from "../../shared/scores";
 
 const listEl = document.getElementById("cabinetList") as HTMLUListElement;
@@ -43,7 +43,7 @@ export function renderList(games: GameEntry[]): Map<string, (top: LeaderboardEnt
             const row = el("li");
             row.append(
               el("span", "who", entry.display_name),
-              el("span", "pts", entry.points.toLocaleString("en-US")),
+              el("span", "pts", formatScore(game, entry.points)),
             );
             return row;
           }),

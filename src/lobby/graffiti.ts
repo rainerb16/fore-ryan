@@ -341,14 +341,12 @@ export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (second
     c.height = CH;
     return [c, c.getContext("2d")];
   };
-  // The piece in layers: what's always there, the season's outfit, the speech
-  // bubble on top, and a mask of where the outfit has been sprayed so far.
+  // The piece in layers: what's always there, the season's outfit, and the
+  // speech bubble on top. The canvas shown is built from them.
   const [canvas, ctx] = make();
   const [base, baseCtx] = make();
   const [outfit, outfitCtx] = make();
   const [top, topCtx] = make();
-  const [mask, maskCtx] = make();
-  const [work, workCtx] = make();
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = 4;
@@ -375,37 +373,40 @@ export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (second
   if (topCtx) bubble(topCtx);
   const dabs = strokes(outfit);
 
-  /** A soft round puff of paint, for the mask. */
-  const puff = (x: number, y: number): void => {
-    if (!maskCtx) return;
-    const r = 44;
-    const g = maskCtx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.6, "rgba(255,255,255,0.85)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    maskCtx.fillStyle = g;
-    maskCtx.fillRect(x - r, y - r, r * 2, r * 2);
-  };
+  /** Dab radius: rows and dabs are close enough that the circles cover the outfit. */
+  const DAB = 44;
 
+  /** The piece as it is before anything's sprayed on, or with the whole outfit. */
   function compose(full: boolean): void {
-    if (!ctx || !workCtx) return;
+    if (!ctx) return;
     ctx.clearRect(0, 0, CW, CH);
     ctx.drawImage(base, 0, 0);
-    if (full) {
-      ctx.drawImage(outfit, 0, 0);
-    } else {
-      // The outfit, only where it has been sprayed so far.
-      workCtx.globalCompositeOperation = "source-over";
-      workCtx.clearRect(0, 0, CW, CH);
-      workCtx.drawImage(outfit, 0, 0);
-      workCtx.globalCompositeOperation = "destination-in";
-      workCtx.drawImage(mask, 0, 0);
-      workCtx.globalCompositeOperation = "source-over";
-      ctx.drawImage(work, 0, 0);
-    }
+    if (full) ctx.drawImage(outfit, 0, 0);
     ctx.drawImage(top, 0, 0);
     texture.needsUpdate = true;
   }
+
+  /**
+   * One dab of paint: reveals the outfit inside a small circle, and redraws the
+   * bubble there so it stays on top. Only that patch is drawn, not the whole piece.
+   */
+  function dab(x: number, y: number): void {
+    if (!ctx) return;
+    const sx = Math.max(0, x - DAB);
+    const sy = Math.max(0, y - DAB);
+    const size = DAB * 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, DAB, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(outfit, sx, sy, size, size, sx, sy, size, size);
+    ctx.drawImage(top, sx, sy, size, size, sx, sy, size, size);
+    ctx.restore();
+  }
+
+  /** Uploading the 2048x1024 texture is the costly part, so while spraying it's done at most this often. */
+  const UPLOAD_EVERY = 0.05;
+  let sinceUpload = 0;
 
   /** Spraying: seconds since it began (negative while the can rattles), and how many dabs are down. */
   let spraying: { t: number; done: number } | null = null;
@@ -413,7 +414,6 @@ export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (second
   let seenFor = 0;
 
   function start(): number {
-    maskCtx?.clearRect(0, 0, CW, CH);
     if (o.reduceMotion) {
       compose(true);
       sprayed = true;
@@ -468,14 +468,15 @@ export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (second
       spraying.t += dt;
       if (spraying.t < 0) return;
       const due = Math.min(dabs.length, Math.ceil((spraying.t / SPRAY_FOR) * dabs.length));
-      if (due === spraying.done) return;
-      for (let k = spraying.done; k < due; k++) puff(dabs[k][0], dabs[k][1]);
+      for (let k = spraying.done; k < due; k++) dab(dabs[k][0], dabs[k][1]);
       spraying.done = due;
+      sinceUpload += dt;
       if (due >= dabs.length) {
         spraying = null;
-        compose(true);
-      } else {
-        compose(false);
+        compose(true); // finish crisp, with every edge of the outfit exactly as drawn
+      } else if (sinceUpload >= UPLOAD_EVERY) {
+        sinceUpload = 0;
+        texture.needsUpdate = true;
       }
     },
   };

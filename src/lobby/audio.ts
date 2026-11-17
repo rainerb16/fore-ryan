@@ -28,11 +28,14 @@ export function setMuted(on: boolean): void {
   muted = on;
   store.set(MUTE_KEY, on ? "1" : "0");
   if (ctx && master) master.gain.setTargetAtTime(on ? 0 : LEVEL, ctx.currentTime, 0.03);
-  if (!on) startAudio();
+  // Muted, nothing runs at all; unmuted, it starts (or resumes) on this tap.
+  if (on) void ctx?.suspend();
+  else startAudio();
 }
 
 /** Starts the audio on a user's tap or key press. Safe to call on every one. */
 export function startAudio(): void {
+  if (muted) return;
   if (ctx) {
     if (ctx.state === "suspended" && !document.hidden) void ctx.resume();
     return;
@@ -56,6 +59,7 @@ export function startAudio(): void {
     curve[i] = over <= 0 ? x : Math.sign(x) * (0.7 + 0.3 * Math.tanh(over / 0.3));
   }
   soft.curve = curve;
+  soft.oversample = "2x";
   master.connect(soft).connect(ctx.destination);
 
   const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -92,13 +96,13 @@ function roomTone(c: AudioContext, out: AudioNode): void {
 document.addEventListener("visibilitychange", () => {
   if (!ctx) return;
   if (document.hidden) void ctx.suspend();
-  else void ctx.resume();
+  else if (!muted) void ctx.resume();
 });
 window.addEventListener("pagehide", () => {
   if (ctx) void ctx.suspend();
 });
 window.addEventListener("pageshow", (e) => {
-  if (ctx && e.persisted && !document.hidden) void ctx.resume();
+  if (ctx && e.persisted && !document.hidden && !muted) void ctx.resume();
 });
 
 function panned(pan: number): AudioNode | null {

@@ -162,6 +162,9 @@ export function breakDown(parts: BrokenParts, personality: Personality): Broken 
   });
   const sparks = new Points(sparkGeometry, sparkMaterial);
   sparks.frustumCulled = false;
+  // Never a tap target: three gives Points a 1 m pick radius, so even faded
+  // particles would catch taps meant for the wall or the next cabinet.
+  sparks.raycast = () => {};
   group.add(sparks);
   let sparkAge = Infinity;
 
@@ -173,6 +176,7 @@ export function breakDown(parts: BrokenParts, personality: Personality): Broken 
   const steamMaterial = new PointsMaterial({ map: soft, color: "#8a8a96", size: 0.12, transparent: true, opacity: 0, depthWrite: false });
   const steam = new Points(steamGeometry, steamMaterial);
   steam.frustumCulled = false;
+  steam.raycast = () => {};
   group.add(steam);
   let steamAge = Infinity;
 

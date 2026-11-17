@@ -36,9 +36,11 @@ const DT = 1 / 120;
 
 /**
  * Plays a whole jump: tap `tapBefore` seconds before the lip (null for never),
- * and hold through the flight while `holding(j)` says so.
+ * and hold through the flight while `holding(j)` says so. With `tapAfterLip`,
+ * a jump that never tapped on the inrun taps the moment it leaves the lip
+ * instead: the best a late take-off can do, since that tap still gives a pop.
  */
-export function simulate(tapBefore: number | null, holding: (j: Jump) => boolean): Jump {
+export function simulate(tapBefore: number | null, holding: (j: Jump) => boolean, tapAfterLip = false): Jump {
   const j = newJump();
   step(j, { pressed: true, held: true }, DT);
   let tapped = false;
@@ -48,6 +50,7 @@ export function simulate(tapBefore: number | null, holding: (j: Jump) => boolean
       const toLip = (INRUN_LENGTH - j.s) / Math.max(j.speed, 0.01);
       if (toLip <= tapBefore) pressed = tapped = true;
     }
+    if (j.phase === "flight" && tapAfterLip && !tapped) pressed = tapped = true;
     step(j, { pressed, held: j.phase === "flight" && holding(j) }, DT);
   }
   return j;
@@ -62,10 +65,11 @@ const TAP: Record<TakeoffQuality, number | null> = {
 
 /**
  * The furthest each take-off can go: holding the whole flight. That lands as a
- * crash, so any real jump with that take-off is shorter.
+ * crash, so any real jump with that take-off is shorter. A late take-off gets
+ * its best case, the tap just after the lip that still gives a small pop.
  */
 export const LONGEST: Record<TakeoffQuality, number> = Object.fromEntries(
-  QUALITIES.map((q) => [q, simulate(TAP[q], () => true).distance ?? 0]),
+  QUALITIES.map((q) => [q, simulate(TAP[q], () => true, q === "late").distance ?? 0]),
 ) as Record<TakeoffQuality, number>;
 
 /** The quickest possible run, push-off to done: a late take-off, never holding. */

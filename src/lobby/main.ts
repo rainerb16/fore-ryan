@@ -98,7 +98,11 @@ function setUpSound(): void {
     // Otherwise Enter or Space would press it again instead of reaching the arcade.
     muteBtn.blur();
   });
-  for (const type of ["pointerdown", "keydown"] as const) window.addEventListener(type, startAudio, { capture: true });
+  // Touch only counts as a gesture that may start audio when the finger lifts
+  // (iOS especially), so listen for the end of a touch and for clicks too.
+  for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"] as const) {
+    window.addEventListener(type, startAudio, { capture: true });
+  }
 }
 
 async function boot(): Promise<void> {

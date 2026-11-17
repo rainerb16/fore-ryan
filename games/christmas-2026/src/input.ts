@@ -6,7 +6,8 @@ import type { Input } from "../rules";
 
 let pressed = false;
 let held = false;
-let pointers = 0;
+/** The pointers holding the jump down. UI taps aren't in here, so they can't end a hold. */
+const pointers = new Set<number>();
 /** The pointer that is steering the camera, where it went down, and how far it has moved since. */
 let dragId: number | null = null;
 const dragStart = { x: 0, y: 0 };
@@ -28,7 +29,7 @@ function up(): void {
 export function attachInput(): void {
   window.addEventListener("pointerdown", (e) => {
     if (isUi(e.target)) return;
-    pointers++;
+    pointers.add(e.pointerId);
     down();
     if (dragId === null) {
       dragId = e.pointerId;
@@ -43,8 +44,8 @@ export function attachInput(): void {
     look.y = (e.clientY - dragStart.y) / window.innerHeight;
   });
   const release = (e: PointerEvent): void => {
-    pointers = Math.max(0, pointers - 1);
-    if (pointers === 0) up();
+    if (!pointers.delete(e.pointerId)) return; // a tap on a button: not part of the hold
+    if (pointers.size === 0) up();
     if (e.pointerId === dragId) endDrag();
   };
   window.addEventListener("pointerup", release);
@@ -61,7 +62,7 @@ export function attachInput(): void {
 
   // Losing focus mid-hold would otherwise leave the button stuck down.
   window.addEventListener("blur", () => {
-    pointers = 0;
+    pointers.clear();
     up();
     endDrag();
   });
