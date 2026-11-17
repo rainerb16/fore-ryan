@@ -100,6 +100,19 @@ document.addEventListener("visibilitychange", () => {
   else void ctx.resume();
 });
 
+// Leaving the game (back to the arcade, the Back button, or closing the tab):
+// stop everything, including a song still queued. Browsers that keep the page
+// cached for Back would otherwise carry on playing it, or resume it on return.
+window.addEventListener("pagehide", () => {
+  if (!ctx) return;
+  hush();
+  setLayers(0, 0);
+  void ctx.suspend();
+});
+window.addEventListener("pageshow", (e) => {
+  if (ctx && e.persisted && !document.hidden) void ctx.resume();
+});
+
 export const isMuted = (): boolean => muted;
 
 export function setMuted(on: boolean): void {

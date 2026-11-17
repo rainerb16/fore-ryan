@@ -238,7 +238,8 @@ Like the golf game's, every sound is synthesized with WebAudio, with no audio fi
 (`src/audio.ts`): skis hissing on the inrun, wind in flight that rises as you lean in and
 deepens in slow motion, sleigh bells panning across with Santa, a landing thud and a crowd
 that roars louder for longer jumps, the crash, and the fireworks. The 🔊 button mutes it, and
-the choice is remembered. Sound pauses when the tab is hidden.
+the choice is remembered. Sound pauses when the tab is hidden, and stops completely when you
+leave the game, even in browsers that keep the page cached for Back.
 
 ### Scoring
 
