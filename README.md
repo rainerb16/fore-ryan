@@ -62,6 +62,7 @@ folder.
 - `season.ts`, `festive.ts`: the Christmas dressing (see below)
 - `audio.ts`: the room's sound
 - `broken.ts`: what the out-of-order machines do when kicked
+- `graffiti.ts`: Ryan, spray-painted on the wall (see below)
 
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
@@ -80,6 +81,14 @@ personality: a glitchy one that sparks and flickers messages on its dead screen
 (`ERROR 404: FUN NOT FOUND`), and an overheating one that vents steam and asks you to call
 Action Furnace. Kick the same machine ten times in quick succession and it splutters to life
 with a high-score table (`RYAN 999,999`) for a few seconds before dying again.
+
+**The graffiti.** Above the broken machines, Ryan is sprayed on the wall as a three-tone
+stencil made from his photo, with paint drips, `Ryan woz ere` tagged beside him, "I REGRET
+NOTHING" in a speech bubble, and an arrow pointing at the machines: `HE DID THIS`. He's dressed
+for the season, on the same dates as the room: a spray-painted Santa hat and beard at Christmas,
+and a gold crown the rest of the year. To dress him for a new season (bunny ears at Easter),
+add it to `Season` in `season.ts` with its dates, then add its drawing to `SEASON_DRESS` in
+`graffiti.ts`; TypeScript won't build until both are there.
 
 **Sound** is synthesized like the games' (`audio.ts`): a quiet room hum with the odd jingle
 from a machine down the row, a tick as the camera moves, a coin dropping in on PLAY, and the

@@ -8,6 +8,7 @@ import type { GameEntry } from "../../shared/games";
 import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
 import { decorateRoom } from "./festive";
+import { sprayGraffiti } from "./graffiti";
 import { sfx } from "./audio";
 import type { Cue } from "./broken";
 import { applyLook } from "./look";
@@ -84,7 +85,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   // Christmas in the arcade, in season: the tree goes in the gap between the
   // poster and the first cabinet.
   const reduceMotion = prefersReducedMotion();
-  const festive = seasonOf(new Date(), window.location.search) === "christmas"
+  const season = seasonOf(new Date(), window.location.search);
+  const festive = season === "christmas"
     ? decorateRoom(scene, {
         trimY: TRIM_Y,
         wallZ: WALL_Z,
@@ -94,6 +96,21 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
         lowPower,
       })
     : null;
+
+  // Ryan, sprayed on the wall above the broken machines, blamed for them.
+  const brokenAt = cabinets.map((c, i) => (c.broken ? xOf(i) : null)).filter((x): x is number => x !== null);
+  // Right of the neon sign and the birthday cabinet's balloons, filling the
+  // wall up to the top of the view.
+  if (brokenAt.length) {
+    sprayGraffiti(scene, {
+      head: images.head,
+      season,
+      x: brokenAt[0] + SPACING,
+      y: TRIM_Y + 0.6,
+      z: WALL_Z + 0.02,
+      blameX: brokenAt[1] ?? brokenAt[0],
+    });
+  }
 
   // Back far enough that a whole cabinet fits, even on a portrait phone; the
   // sign shrinks to whatever width of wall that leaves in view.
@@ -139,7 +156,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
 
   function kick(i: number): void {
     const broken = cabinets[i].broken;
-    if (broken) play(broken.poke(), i);
+    if (!broken) return;
+    play(broken.poke(), i);
   }
 
   function launch(): void {

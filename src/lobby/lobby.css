@@ -194,15 +194,17 @@ body:not(.webgl):not(.no-webgl) #credit { visibility: hidden; }
 
 body.webgl #credit {
   position: fixed;
-  /* Below the neon tube that runs along the top of the wall. */
-  top: calc(58px + env(safe-area-inset-top));
-  right: 32px;
+  /* Bottom left: the top of the wall has the neon sign and the graffiti,
+     and this corner is clear at every cabinet. */
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 28px;
   margin: 0;
   pointer-events: none;
 }
 
 @media (max-width: 600px) {
-  body.webgl #credit { top: calc(54px + env(safe-area-inset-top)); right: 22px; }
+  /* Phones: the controls fill the bottom, so top left, under the mute button. */
+  body.webgl #credit { top: calc(58px + env(safe-area-inset-top)); bottom: auto; left: 14px; }
   #credit small { font-size: 10px; }
   #credit span { font-size: 30px; }
 }
