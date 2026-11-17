@@ -18,8 +18,8 @@ export type Verdict =
 
 export interface ServerGame {
   entry: GameEntry;
-  /** Env var holding the contest's closing time, as an ISO timestamp. */
-  closesAtVar: string;
+  /** Env var holding the contest's closing time, as an ISO timestamp. Omit for a game whose board never closes. */
+  closesAtVar?: string;
   judge(details: unknown): Verdict;
 }
 
@@ -48,7 +48,7 @@ const RULES: Record<string, Omit<ServerGame, "entry">> = {
     },
   },
   "christmas-2026": {
-    closesAtVar: "CONTEST_ENDS_AT_CHRISTMAS_2026",
+    // No closing date: the podium stays open.
     judge(details) {
       const verdict = judgeJump(details);
       if (!verdict.ok) return verdict;
@@ -85,6 +85,7 @@ export const LEGACY_GAME = "birthday-2026";
 
 /** When this game's contest closes, or null if it runs indefinitely. */
 export function contestEndsAt(game: ServerGame): Date | null {
+  if (!game.closesAtVar) return null;
   const raw = process.env[game.closesAtVar];
   if (!raw) return null;
   const when = new Date(raw);
