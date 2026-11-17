@@ -1,12 +1,15 @@
 // The 3D arcade: a row of cabinets and a camera on rails in front of them.
-// Arrow keys, swipes, the on-screen buttons, or a tap move between games;
+// Arrow keys, swipes, the on-screen buttons, or a tap move between cabinets;
 // Enter, PLAY, or a tap on the focused cabinet zooms into its screen and loads it.
+// The out-of-order machines are stops too: there, the same press kicks it.
 
 import { MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type Object3D } from "three";
 import type { GameEntry } from "../../shared/games";
 import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
 import { decorateRoom } from "./festive";
+import { sfx } from "./audio";
+import type { Cue } from "./broken";
 import { applyLook } from "./look";
 import { buildPoster } from "./poster";
 import { buildRoom, TRIM_Y, WALL_Z } from "./room";
@@ -30,19 +33,27 @@ export interface ArcadeImages {
   guy: HTMLImageElement | null;
 }
 
+/** The cabinet the camera has stopped at: a game, or a machine that's out of order. */
+export type Focus = { kind: "game"; game: GameEntry } | { kind: "broken" };
+
 export interface ArcadeOptions {
   canvas: HTMLCanvasElement;
   games: GameEntry[];
   images: ArcadeImages;
-  onFocus(game: GameEntry): void;
+  onFocus(focus: Focus): void;
   onLaunchStart(game: GameEntry): void;
 }
+
+const PERSONALITIES = ["glitchy", "overheating"] as const;
 
 /** Coming soon on the left, the games newest first, broken machines after. */
 function lineUp(games: GameEntry[]): CabinetSpec[] {
   const specs: CabinetSpec[] = [{ kind: "soon" }];
   games.forEach((game, i) => specs.push({ kind: "game", game, offset: i * 3.7 }));
-  while (specs.length < MIN_CABINETS || specs.at(-1)?.kind === "game") specs.push({ kind: "broken" });
+  let broken = 0;
+  while (specs.length < MIN_CABINETS || specs.at(-1)?.kind === "game") {
+    specs.push({ kind: "broken", personality: PERSONALITIES[broken++ % PERSONALITIES.length] });
+  }
   return specs;
 }
 
@@ -60,7 +71,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     scene.add(cabinet.group);
     return cabinet;
   });
-  const playable = cabinets.map((c, i) => (c.game ? i : -1)).filter((i) => i >= 0);
+  /** The cabinets the camera stops at: every game, and the broken machines after them. */
+  const playable = cabinets.map((c, i) => (c.game || c.broken ? i : -1)).filter((i) => i >= 0);
   const lowPower = isLowPower();
   const room = buildRoom(scene, specs.map((_, i) => xOf(i)), lowPower);
 
@@ -108,18 +120,38 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   let railX = xOf(playable[0]);
   let launching: { from: Vector3; to: Vector3; look: Vector3; started: number } | null = null;
 
-  function setFocus(next: number): void {
+  function setFocus(next: number, quiet = false): void {
+    const was = focus;
     focus = MathUtils.clamp(next, 0, playable.length - 1);
+    if (focus !== was && !quiet) sfx.move();
     cabinets.forEach((c, i) => c.setFocused(i === playable[focus]));
     const game = cabinets[playable[focus]].game;
-    if (game) onFocus(game);
+    onFocus(game ? { kind: "game", game } : { kind: "broken" });
+  }
+
+  /** Where a cabinet is on screen, -1 left to 1 right, for panning its sounds. */
+  const panOf = (i: number): number => MathUtils.clamp((xOf(i) - camera.position.x) / 1.5, -1, 1);
+
+  function play(cues: Cue[], i: number): void {
+    const pan = panOf(i);
+    for (const cue of cues) sfx[cue](pan);
+  }
+
+  function kick(i: number): void {
+    const broken = cabinets[i].broken;
+    if (broken) play(broken.poke(), i);
   }
 
   function launch(): void {
     if (launching) return;
     const cabinet = cabinets[playable[focus]];
+    if (cabinet.broken) {
+      kick(playable[focus]);
+      return;
+    }
     const game = cabinet.game;
     if (!game) return;
+    sfx.coin();
     onLaunchStart(game);
     if (reduceMotion) {
       window.location.assign(game.path);
@@ -160,7 +192,11 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     if (hit < 0) return;
     const at = playable.indexOf(hit);
     if (at < 0) return;
-    if (at === focus) launch();
+    if (cabinets[hit].broken) {
+      // A broken machine takes a kick straight away, wherever the camera is.
+      if (at !== focus) setFocus(at);
+      kick(hit);
+    } else if (at === focus) launch();
     else setFocus(at);
   });
 
@@ -184,7 +220,11 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   const lookAt = new Vector3();
   runLoop((time, dt) => {
     room.update(time);
-    for (const c of cabinets) c.update(time);
+    cabinets.forEach((c, i) => {
+      c.update(time);
+      const cues = c.broken?.takeCues();
+      if (cues?.length) play(cues, i);
+    });
     festive?.(time, dt, camera.position.x);
 
     if (launching) {
@@ -213,7 +253,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     look.render();
   });
 
-  setFocus(0);
+  setFocus(0, true);
 
   // Coming back via the browser's Back button restores this page from cache,
   // mid-zoom. Start again from the rail.

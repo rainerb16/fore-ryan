@@ -2,6 +2,7 @@ import "./lobby.css";
 import { byNewest } from "../../shared/games";
 import { getLeaderboard, type LeaderboardEntry } from "../../shared/scores";
 import { hasWebGL } from "../../shared/webgl";
+import { isMuted, setMuted, startAudio } from "./audio";
 import { renderList } from "./list";
 
 type ShowScores = (gameId: string, top: LeaderboardEntry[] | null) => void;
@@ -39,15 +40,26 @@ async function start3d(): Promise<ShowScores> {
 
   const title = $("focusTitle");
   const occasion = $("focusOccasion");
+  const playBtn = $("playBtn");
+  const hintAction = $("hintAction");
   const fade = $("fade");
 
   const arcade = createArcade({
     canvas: $<HTMLCanvasElement>("arcade"),
     games,
     images: { head, logo, guy },
-    onFocus(game) {
-      title.textContent = game.title;
-      occasion.textContent = `${game.occasion} ${game.year}`;
+    onFocus(focus) {
+      if (focus.kind === "game") {
+        title.textContent = focus.game.title;
+        occasion.textContent = `${focus.game.occasion} ${focus.game.year}`;
+        playBtn.textContent = "PLAY";
+        hintAction.textContent = "play";
+      } else {
+        title.textContent = "Out of order";
+        occasion.textContent = "Rainer's on it";
+        playBtn.textContent = "KICK";
+        hintAction.textContent = "give it a kick";
+      }
     },
     onLaunchStart() {
       fade.classList.add("on");
@@ -72,12 +84,30 @@ async function start3d(): Promise<ShowScores> {
   return (id, top) => arcade.setScores(id, top ? { state: "ready", top } : { state: "error" });
 }
 
+/** The arcade's sound: off until the first tap or key press, and mutable. */
+function setUpSound(): void {
+  const muteBtn = $<HTMLButtonElement>("muteBtn");
+  const show = (): void => {
+    muteBtn.textContent = isMuted() ? "🔇" : "🔊";
+    muteBtn.setAttribute("aria-pressed", String(isMuted()));
+  };
+  show();
+  muteBtn.addEventListener("click", () => {
+    setMuted(!isMuted());
+    show();
+    // Otherwise Enter or Space would press it again instead of reaching the arcade.
+    muteBtn.blur();
+  });
+  for (const type of ["pointerdown", "keydown"] as const) window.addEventListener(type, startAudio, { capture: true });
+}
+
 async function boot(): Promise<void> {
   let showOnScreens: ShowScores | null = null;
   if (hasWebGL()) {
     try {
       showOnScreens = await start3d();
       document.body.classList.add("webgl");
+      setUpSound();
     } catch (err) {
       console.error("The 3D arcade failed to start; showing the list instead.", err);
     }

@@ -22,6 +22,7 @@ import {
   type Texture,
 } from "three";
 import type { GameEntry } from "../../shared/games";
+import { breakDown, type Broken, type Personality } from "./broken";
 import { decorate } from "./decorations";
 import { AttractScreen } from "./screen";
 import { ARCADE_FONT, contactShadow, lightPool, marquee, paint, PALETTES, SCRIPT_FONT, sideArt } from "./textures";
@@ -39,12 +40,14 @@ const PROFILE = [
 export type CabinetSpec =
   | { kind: "game"; game: GameEntry; offset: number }
   | { kind: "soon" }
-  | { kind: "broken" };
+  | { kind: "broken"; personality: Personality };
 
 export interface Cabinet {
   group: Group;
   game: GameEntry | null;
   screen: AttractScreen | null;
+  /** For an out-of-order machine: what it does when kicked. */
+  broken: Broken | null;
   /** Where the camera zooms to when this cabinet is launched. */
   screenMesh: Mesh;
   /** Attract-mode screen and decorations; called every frame. */
@@ -209,14 +212,20 @@ export function buildCabinet(spec: CabinetSpec, head: HTMLImageElement | null): 
   );
   glass.position.z = 0.026;
   bezel.add(glass);
+  let broken: Broken | null = null;
   if (spec.kind === "broken") {
     const sign = new Mesh(
       new PlaneGeometry(0.26, 0.2),
-      new MeshStandardMaterial({ map: outOfOrder(), roughness: 0.9 }),
+      // Paper kept grey: under the spotlight of a focused cabinet, white glows.
+      new MeshStandardMaterial({ map: outOfOrder(), color: "#7c7c7c", roughness: 0.9 }),
     );
     sign.position.set(0.04, -0.02, 0.03);
     sign.rotation.z = -0.12;
     bezel.add(sign);
+    broken = breakDown(
+      { group, bezel, sign, screenSize: [W * 0.82, 0.42], slot: [0, 0.56, 0.8 - zFront + 0.03] },
+      spec.personality,
+    );
   }
   group.add(bezel);
 
@@ -266,10 +275,12 @@ export function buildCabinet(spec: CabinetSpec, head: HTMLImageElement | null): 
     group,
     game,
     screen,
+    broken,
     screenMesh,
     update(time) {
       screen?.update(time);
       animate?.(time);
+      broken?.update(time);
     },
     setFocused(on) {
       if (!screen) return;

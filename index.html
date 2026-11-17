@@ -40,6 +40,8 @@
 
 <p id="credit"><small>Coded by</small> <span>Rainer B.</span></p>
 
+<button id="muteBtn" type="button" aria-label="Sound" aria-pressed="false">🔊</button>
+
 <div id="controls" aria-hidden="true">
   <p class="now">
     <strong id="focusTitle"></strong>
@@ -50,7 +52,7 @@
     <button id="playBtn" type="button" tabindex="-1">PLAY</button>
     <button id="nextBtn" type="button" tabindex="-1">▶</button>
   </div>
-  <p class="hint">← → to browse · Enter to play</p>
+  <p class="hint">← → to browse · Enter to <span id="hintAction">play</span></p>
 </div>
 
 <div id="fade"></div>

@@ -206,3 +206,21 @@ body.webgl #credit {
   #credit small { font-size: 10px; }
   #credit span { font-size: 30px; }
 }
+
+/* --- sound ------------------------------------------------------------------ */
+
+#muteBtn { display: none; }
+body.webgl #muteBtn {
+  display: block;
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 16px;
+  z-index: 3;
+  padding: 7px 11px;
+  border: 1px solid rgba(185, 169, 214, 0.35);
+  border-radius: 999px;
+  background: rgba(7, 4, 15, 0.6);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
