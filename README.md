@@ -64,6 +64,7 @@ folder.
 - `broken.ts`: what the out-of-order machines do when kicked
 - `graffiti.ts`: Ryan, spray-painted on the wall (see below)
 - `storefront.ts`: the outside of the shop, where a visit starts
+- `props.ts`: the claw machine, pinball table, prize counter and neon wall art
 
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
@@ -74,8 +75,15 @@ enter" (or "Tap to enter") hangs in the glass door; clicking or tapping anywhere
 Enter, rings the bell, swings the door open, and walks you in. That click is also what lets the
 browser start the sound. Once inside, the rest of the visit (that browser tab) stays inside,
 so coming back from a game doesn't mean walking in again. Add `?outside` to the address to
-start in the street anyway. Snow falls outside and a wreath hangs on the door in the Christmas
-season. Tabbing into the game list steps straight inside, and with reduced motion the walk in
+start in the street anyway. Potted evergreens flank the door, a hydrant and a "Ryan Ave / Arcade St" signpost stand
+on the pavement, and while you're outside the room's lights are turned down so the door's
+sign reads. Snow falls outside, the potted trees are lit, and a wreath hangs on the door in
+the Christmas season.
+
+**The rest of the floor** fills the room's ends so it looks like a real arcade through the
+windows: a claw machine full of plush toys (and a few Ryan plushies) under a neon joystick, a
+pinball table flashing RYAN, and a prize counter with shelves of prizes under "PRIZES" and
+"HIGH SCORE" in neon (`props.ts`). None of it is a tap target. Tabbing into the game list steps straight inside, and with reduced motion the walk in
 is skipped (`storefront.ts`).
 
 **From 16 November to 6 January** the room dresses for Christmas: twinkling bulbs along the

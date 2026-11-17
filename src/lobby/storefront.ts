@@ -10,6 +10,8 @@
 import {
   AdditiveBlending,
   BoxGeometry,
+  ConeGeometry,
+  CylinderGeometry,
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
@@ -112,6 +114,131 @@ function glow(map: Texture, w: number, h: number): Mesh<PlaneGeometry, MeshBasic
   );
 }
 
+/** A snowy-or-not evergreen: tiers of cones on a trunk, `h` metres tall. */
+function evergreen(h: number, winter: boolean, lights: boolean): Group {
+  const g = new Group();
+  const trunk = new Mesh(new CylinderGeometry(h * 0.03, h * 0.04, h * 0.18, 8), new MeshStandardMaterial({ color: "#3b2618", roughness: 0.9 }));
+  trunk.position.y = h * 0.09;
+  g.add(trunk);
+  const needles = new MeshStandardMaterial({ color: "#1c4a2c", roughness: 0.9 });
+  // Grey, not white: under the door lamp, white snow glows like a light.
+  const snowy = new MeshStandardMaterial({ color: "#8d909e", roughness: 1 });
+  [[0.34, 0.42, 0.34], [0.27, 0.36, 0.58], [0.19, 0.3, 0.8]].forEach(([r, th, y]) => {
+    const tier = new Mesh(new ConeGeometry(h * r, h * th, 14), needles);
+    tier.position.y = h * y;
+    g.add(tier);
+    if (winter) {
+      // Snow resting on the top of each tier.
+      const cap = new Mesh(new ConeGeometry(h * r * 0.62, h * th * 0.42, 14), snowy);
+      cap.position.y = h * (y + th * 0.3);
+      g.add(cap);
+    }
+  });
+  if (lights) {
+    const colours = ["#ff3b3b", "#3bff7a", "#ffd23b", "#3bb4ff"];
+    for (let i = 0; i < 18; i++) {
+      const t = i / 18;
+      const y = h * (0.22 + t * 0.7);
+      const r = h * 0.3 * (1 - t * 0.85) + 0.02;
+      const a = t * Math.PI * 7;
+      const bulb = new Mesh(new SphereGeometry(0.016, 6, 4), new MeshBasicMaterial({ color: new Color(colours[i % 4]).multiplyScalar(0.7) }));
+      bulb.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+      g.add(bulb);
+    }
+  }
+  return g;
+}
+
+/** A street-name blade: white letters on green, as on a real signpost. */
+function streetBlade(name: string): Mesh {
+  const art = paint(512, 112, (ctx) => {
+    ctx.fillStyle = "#11653a";
+    ctx.fillRect(0, 0, 512, 112);
+    ctx.strokeStyle = "#e9efe9";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(8, 8, 496, 96);
+    ctx.fillStyle = "#f4f7f2";
+    ctx.font = `700 68px "Oswald", Impact, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(name, 256, 60, 470);
+  });
+  const material = new MeshStandardMaterial({ map: art, emissiveMap: art, emissive: "#ffffff", emissiveIntensity: 0.05, roughness: 0.8 });
+  // Two faces back to back, so it reads from either side.
+  return new Mesh(new BoxGeometry(0.9, 0.2, 0.02), material);
+}
+
+/** What stands on the pavement: potted trees by the door, a hydrant, and a signpost. */
+function streetFurniture(winter: boolean): Group[] {
+  const parts: Group[] = [];
+
+  // A potted evergreen either side of the door, lit up in season.
+  for (const side of [-1, 1]) {
+    const g = new Group();
+    const pot = new Mesh(new CylinderGeometry(0.2, 0.16, 0.36, 16), new MeshStandardMaterial({ color: "#3a3440", roughness: 0.7 }));
+    pot.position.y = 0.18;
+    g.add(pot);
+    const tree = evergreen(1.25, winter, winter);
+    tree.position.y = 0.32;
+    g.add(tree);
+    g.position.set(side * 0.86, 0, 0.32);
+    parts.push(g);
+  }
+
+  // A red fire hydrant by the kerb.
+  {
+    const g = new Group();
+    const red = new MeshStandardMaterial({ color: "#c8202b", roughness: 0.45, metalness: 0.2 });
+    const body = new Mesh(new CylinderGeometry(0.11, 0.13, 0.5, 16), red);
+    body.position.y = 0.27;
+    g.add(body);
+    const dome = new Mesh(new SphereGeometry(0.115, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), red);
+    dome.position.y = 0.52;
+    g.add(dome);
+    const cap = new Mesh(new CylinderGeometry(0.03, 0.03, 0.04, 8), red);
+    cap.position.y = 0.64;
+    g.add(cap);
+    for (const side of [-1, 1]) {
+      const nozzle = new Mesh(new CylinderGeometry(0.045, 0.045, 0.12, 10), red);
+      nozzle.rotation.z = Math.PI / 2;
+      nozzle.position.set(side * 0.15, 0.36, 0);
+      g.add(nozzle);
+    }
+    const base = new Mesh(new CylinderGeometry(0.16, 0.17, 0.05, 16), red);
+    base.position.y = 0.025;
+    g.add(base);
+    if (winter) {
+      const snow = new Mesh(new SphereGeometry(0.1, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), new MeshStandardMaterial({ color: "#8d909e", roughness: 1 }));
+      snow.position.y = 0.56;
+      snow.scale.y = 0.6;
+      g.add(snow);
+    }
+    g.position.set(1.75, 0, 1.15); // in front of the right window, inside even a phone's view
+    parts.push(g);
+  }
+
+  // A street-name signpost at the corner: Ryan Ave crossing Arcade St.
+  {
+    const g = new Group();
+    const steel = new MeshStandardMaterial({ color: "#5a5d66", roughness: 0.5, metalness: 0.7 });
+    const pole = new Mesh(new CylinderGeometry(0.035, 0.04, 2.9, 10), steel);
+    pole.position.y = 1.45;
+    g.add(pole);
+    const ave = streetBlade("RYAN AVE");
+    ave.position.set(0, 2.75, 0);
+    g.add(ave);
+    const st = streetBlade("ARCADE ST");
+    st.position.set(0, 2.52, 0);
+    st.rotation.y = Math.PI / 2;
+    g.add(st);
+    g.position.set(-2.55, 0, 1.0);
+    g.rotation.y = -0.35; // turned so both names catch the eye
+    parts.push(g);
+  }
+
+  return parts;
+}
+
 export interface Storefront {
   /** Swings the door open, 0 shut to 1 wide open. */
   openDoor(amount: number): void;
@@ -210,6 +337,10 @@ export function buildStorefront(scene: Scene, o: StorefrontOptions): Storefront 
   handle.position.set(doorW - 0.14, 1.05, 0.06);
   door.add(handle);
   // As big as the door's glass allows, and dimmed: bloom turns full-bright neon white.
+  // A dark board behind the sign, so it reads against the lit room behind the glass.
+  const board = new Mesh(new PlaneGeometry(doorW - 0.12, (doorW - 0.2) * 0.625 + 0.1), new MeshBasicMaterial({ color: "#05030a", transparent: true, opacity: 0.88 }));
+  board.position.set(doorW / 2, 1.3, -0.015);
+  door.add(board);
   const sign = glow(doorSign(o.words), doorW - 0.2, (doorW - 0.2) * 0.625);
   sign.material.color.setScalar(0.6);
   sign.position.set(doorW / 2, 1.3, -0.01);
@@ -226,10 +357,10 @@ export function buildStorefront(scene: Scene, o: StorefrontOptions): Storefront 
   front.add(open);
 
   // A warm lamp over the door, lighting the step and the pavement.
-  const lamp = new PointLight("#ffd9a8", 10, 7, 1.6);
+  const lamp = new PointLight("#ffd9a8", 4.5, 6, 1.6);
   lamp.position.set(0, 3.0, 0.8);
   front.add(lamp);
-  const lampShade = new Mesh(new SphereGeometry(0.08, 14, 10), new MeshBasicMaterial({ color: new Color("#ffe2b8").multiplyScalar(1.4) }));
+  const lampShade = new Mesh(new SphereGeometry(0.06, 14, 10), new MeshBasicMaterial({ color: new Color("#ffe2b8").multiplyScalar(0.85) }));
   lampShade.position.copy(lamp.position);
   front.add(lampShade);
 
@@ -246,6 +377,10 @@ export function buildStorefront(scene: Scene, o: StorefrontOptions): Storefront 
   const kerb = new Mesh(new BoxGeometry(WIDTH, 0.12, 0.2), new MeshStandardMaterial({ color: "#3a3942", roughness: 0.9 }));
   kerb.position.set(0, 0.06, 3.2);
   front.add(kerb);
+
+  // --- the street furniture ----------------------------------------------------------------
+  const winter = o.season === "christmas";
+  front.add(...streetFurniture(winter));
 
   // --- the season ----------------------------------------------------------------------
   let snow: { points: Points; pos: Float32Array; drift: Float32Array } | null = null;
