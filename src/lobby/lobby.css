@@ -236,3 +236,30 @@ body.webgl #muteBtn {
   line-height: 1;
   cursor: pointer;
 }
+
+/* --- outside the shop front: everything but the street waits until you're in --- */
+
+#enterBtn { display: none; }
+body.webgl.outside #enterBtn {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+#enterBtn:focus-visible { outline: 3px solid var(--neon); outline-offset: -6px; }
+/* The door's own sign says it; this is for screen readers. */
+#enterLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+#controls, #credit, #muteBtn { transition: opacity 0.6s; }
+body.outside #controls,
+body.outside #muteBtn { opacity: 0; pointer-events: none; }
+body.outside #controls .buttons { pointer-events: none; }

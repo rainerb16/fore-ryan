@@ -3,7 +3,7 @@
 // Enter, PLAY, or a tap on the focused cabinet zooms into its screen and loads it.
 // The out-of-order machines are stops too: there, the same press kicks it.
 
-import { MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type Object3D } from "three";
+import { CatmullRomCurve3, Fog, MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type Object3D } from "three";
 import type { GameEntry } from "../../shared/games";
 import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
@@ -15,6 +15,7 @@ import { applyLook } from "./look";
 import { buildPoster } from "./poster";
 import { buildRoom, TRIM_Y, WALL_Z } from "./room";
 import { seasonOf } from "./season";
+import { buildStorefront, FRONT_Z } from "./storefront";
 import type { Scores } from "./screen";
 
 const SPACING = CABINET_WIDTH + 0.26;
@@ -26,6 +27,8 @@ const MIN_CABINETS = 5;
 export interface Arcade {
   setScores(gameId: string, scores: Scores): void;
   focusGame(gameId: string): void;
+  /** Goes in from the street: the door opens and the camera glides through it. */
+  enter(): void;
 }
 
 export interface ArcadeImages {
@@ -43,6 +46,12 @@ export interface ArcadeOptions {
   images: ArcadeImages;
   onFocus(focus: Focus): void;
   onLaunchStart(game: GameEntry): void;
+  /** Start outside the shop front, waiting to be let in. */
+  startOutside: boolean;
+  /** "Click to enter" or "Tap to enter", for the sign on the door. */
+  enterWords: string;
+  /** Once the camera is inside, whether by the door or straight away. */
+  onEntered(): void;
 }
 
 const PERSONALITIES = ["glitchy", "overheating"] as const;
@@ -58,7 +67,13 @@ function lineUp(games: GameEntry[]): CabinetSpec[] {
   return specs;
 }
 
-export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: ArcadeOptions): Arcade {
+/** How long walking in takes, door and all. */
+const ENTER_FOR = 2.6;
+/** The room's haze inside, and how far you can see out in the street. */
+const FOG_INSIDE = { near: 5, far: 14 };
+const FOG_OUTSIDE = { near: 9, far: 40 };
+
+export function createArcade({ canvas, games, images, onFocus, onLaunchStart, startOutside, enterWords, onEntered }: ArcadeOptions): Arcade {
   const scene = new Scene();
   const camera = new PerspectiveCamera(FOV, 1, 0.1, 40);
 
@@ -120,12 +135,24 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       )
     : null;
 
+  // The street outside, where a visit starts (once per visit; see main.ts).
+  const storefront = startOutside ? buildStorefront(scene, { season, words: enterWords, lowPower }) : null;
+  /** Outside waiting at the door, or walking in (seconds since the door was opened). */
+  let intro: { phase: "outside" } | { phase: "entering"; t: number; path: CatmullRomCurve3; from: Vector3 } | null =
+    storefront ? { phase: "outside" } : null;
+  const fog = scene.fog instanceof Fog ? scene.fog : null;
+  if (intro && fog) Object.assign(fog, FOG_OUTSIDE);
+  /** How far back from the shop front the camera stands outside: enough to fit the door and windows. */
+  let outsideDistance = 6;
+
   // Back far enough that a whole cabinet fits, even on a portrait phone; the
   // sign shrinks to whatever width of wall that leaves in view.
   let distance = 3;
   const renderer = createView(canvas, camera, (w, h) => {
     const halfTan = Math.tan(MathUtils.degToRad(FOV / 2));
     distance = Math.max(3, (CABINET_WIDTH * 0.95) / (halfTan * (w / h)));
+    // Wide screens see the whole front; phones close in on the door and the windows beside it.
+    outsideDistance = Math.max(6, 2.1 / (halfTan * (w / h)));
     const wallDistance = distance + (ROW_Z - WALL_Z);
     room.fitSign(2 * wallDistance * halfTan * (w / h));
     look.resize(w, h);
@@ -191,8 +218,47 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
 
   // --- input ------------------------------------------------------------------
 
+  /** Where the camera stands in the street, and what it looks at. */
+  const outsidePose = (pos: Vector3, at: Vector3): void => {
+    pos.set(0, 1.6, FRONT_Z + outsideDistance);
+    at.set(0, 1.9, FRONT_Z);
+  };
+
+  function enter(): void {
+    if (intro?.phase !== "outside") return;
+    sfx.doorBell();
+    if (reduceMotion) {
+      finishEntering();
+      return;
+    }
+    const from = new Vector3();
+    outsidePose(from, new Vector3());
+    // Up to the door, through it, and on to the first cabinet's view.
+    const inside = new Vector3(xOf(playable[focus]), 1.6, ROW_Z + distance);
+    const path = new CatmullRomCurve3([
+      from,
+      new Vector3(0, 1.6, FRONT_Z + 1.4),
+      new Vector3(0, 1.55, FRONT_Z - 0.8),
+      inside,
+    ]);
+    intro = { phase: "entering", t: 0, path, from };
+  }
+
+  function finishEntering(): void {
+    intro = null;
+    if (fog) Object.assign(fog, FOG_INSIDE);
+    onEntered();
+  }
+
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLElement && e.target.closest("a, button")) return; // let links work
+    if (intro) {
+      if (intro.phase === "outside" && (e.key === "Enter" || e.key === " ") && !e.repeat) {
+        enter();
+        e.preventDefault();
+      }
+      return;
+    }
     if (launching) return; // on the way into a game: nothing else now
     if (e.key === "ArrowLeft") setFocus(focus - 1);
     else if (e.key === "ArrowRight") setFocus(focus + 1);
@@ -209,6 +275,12 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
 
   canvas.addEventListener("pointerdown", (e) => (downAt = { x: e.clientX, y: e.clientY }));
   canvas.addEventListener("pointerup", (e) => {
+    if (intro) {
+      // Outside: a tap anywhere goes in.
+      downAt = null;
+      enter();
+      return;
+    }
     if (!downAt || launching) return;
     const dx = e.clientX - downAt.x;
     const dy = e.clientY - downAt.y;
@@ -235,6 +307,10 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   });
 
   canvas.addEventListener("pointermove", (e) => {
+    if (intro) {
+      canvas.style.cursor = intro.phase === "outside" ? "pointer" : "";
+      return;
+    }
     const over = cabinetAt(e.clientX, e.clientY);
     canvas.style.cursor = playable.includes(over) || (over < 0 && graffiti?.hit(raycaster)) ? "pointer" : "";
   });
@@ -261,6 +337,40 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       if (cues?.length) play(cues, i);
     });
     festive?.(time);
+
+    if (intro && storefront) {
+      storefront.update(time, dt);
+      if (intro.phase === "outside") {
+        outsidePose(camera.position, lookAt);
+        // A slow, gentle sway, like someone standing in the street.
+        if (!reduceMotion) camera.position.x += Math.sin(time * 0.3) * 0.08;
+        camera.lookAt(lookAt);
+      } else {
+        intro.t += dt;
+        const t = Math.min(intro.t / ENTER_FOR, 1);
+        // The door swings open first; the walk in starts as it does.
+        const doorT = Math.min(1, t / 0.3);
+        storefront.openDoor(1 - (1 - doorT) * (1 - doorT));
+        const walk = MathUtils.clamp((t - 0.12) / 0.88, 0, 1);
+        const ease = walk * walk * (3 - 2 * walk);
+        camera.position.copy(intro.path.getPoint(ease));
+        // Looking at the door, then down the row of cabinets.
+        const ahead = new Vector3(xOf(playable[focus]), 1.5, ROW_Z);
+        const door = new Vector3(0, 1.75, FRONT_Z);
+        lookAt.lerpVectors(door, ahead, MathUtils.smoothstep(walk, 0.15, 0.85));
+        camera.lookAt(lookAt);
+        if (fog) {
+          fog.near = MathUtils.lerp(FOG_OUTSIDE.near, FOG_INSIDE.near, walk);
+          fog.far = MathUtils.lerp(FOG_OUTSIDE.far, FOG_INSIDE.far, walk);
+        }
+        if (t >= 1) {
+          railX = xOf(playable[focus]);
+          finishEntering();
+        }
+      }
+      look.render();
+      return;
+    }
     graffiti?.update(dt, camera);
 
     if (launching) {
@@ -301,8 +411,14 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       cabinets.find((c) => c.game?.id === gameId)?.screen?.setScores(scores);
     },
     focusGame(gameId) {
+      // Tabbing into the game list from the street steps straight inside.
+      if (intro) {
+        railX = xOf(playable[focus]);
+        finishEntering();
+      }
       const at = playable.findIndex((i) => cabinets[i].game?.id === gameId);
       if (at >= 0 && at !== focus) setFocus(at);
     },
+    enter,
   };
 }

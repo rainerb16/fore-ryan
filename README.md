@@ -63,9 +63,20 @@ folder.
 - `audio.ts`: the room's sound
 - `broken.ts`: what the out-of-order machines do when kicked
 - `graffiti.ts`: Ryan, spray-painted on the wall (see below)
+- `storefront.ts`: the outside of the shop, where a visit starts
 
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
+
+**A visit starts outside**, on the pavement in front of the shop: a brick front with the neon
+sign over the door, an OPEN sign, and big windows looking into the real room. "Click to
+enter" (or "Tap to enter") hangs in the glass door; clicking or tapping anywhere, or pressing
+Enter, rings the bell, swings the door open, and walks you in. That click is also what lets the
+browser start the sound. Once inside, the rest of the visit (that browser tab) stays inside,
+so coming back from a game doesn't mean walking in again. Add `?outside` to the address to
+start in the street anyway. Snow falls outside and a wreath hangs on the door in the Christmas
+season. Tabbing into the game list steps straight inside, and with reduced motion the walk in
+is skipped (`storefront.ts`).
 
 **From 16 November to 6 January** the room dresses for Christmas: twinkling bulbs along the
 trim above the cabinets, and a lit tree with presents between the poster and the first
