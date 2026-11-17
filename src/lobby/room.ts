@@ -31,13 +31,16 @@ export interface Room {
   fitSign(visibleWidth: number): void;
   /** Neon flicker, called each frame. */
   update(time: number): void;
+  /** Turns the room's lights down (0) or fully up (1): dimmed while it's seen from the street. */
+  setBrightness(amount: number): void;
 }
 
 export function buildRoom(scene: Scene, spotXs: number[], lowPower: boolean): Room {
   scene.background = new Color(NIGHT);
   scene.fog = new Fog(NIGHT, 5, 14);
 
-  scene.add(new HemisphereLight("#7a68c0", "#150b28", 0.7));
+  const ambient = new HemisphereLight("#7a68c0", "#150b28", 0.7);
+  scene.add(ambient);
 
   const carpetTexture = carpet();
   carpetTexture.repeat.set(12, 5);
@@ -110,6 +113,12 @@ export function buildRoom(scene: Scene, spotXs: number[], lowPower: boolean): Ro
       // Mostly steady, with the odd stutter of an ageing tube.
       const stutter = Math.sin(time * 37) > 0.97 && Math.sin(time * 1.3) > 0.6;
       sign.material.opacity = stutter ? 0.55 : 1;
+    },
+    setBrightness(amount) {
+      ambient.intensity = 0.7 * (0.35 + 0.65 * amount);
+      spot.intensity = 14 * amount;
+      sign.material.color.setScalar(0.55 * (0.4 + 0.6 * amount));
+      can.color.set("#fff3e0").multiplyScalar(0.45 + 0.55 * amount); // the ceiling lights, seen through the windows
     },
   };
 }
