@@ -233,6 +233,14 @@ export const sfx = {
     // Bouncing on the carpet, each bounce quicker and quieter.
     [0.25, 0.42, 0.54, 0.62].forEach((at, i) => tone(2093, 0.05, "triangle", at, 0.04 / (i + 1), out));
   },
+  /** A spray can: the ball rattling as it's shaken, then `seconds` of hiss in short strokes. */
+  spray(pan: number, seconds: number): void {
+    const out = panned(pan);
+    for (let i = 0; i < 4; i++) burst(0.035, "bandpass", 3200, 0.07, { when: i * 0.1, q: 6, out });
+    // Back-and-forth strokes: a hiss for each, with a breath between.
+    const strokes = Math.max(1, Math.round(seconds / 0.3));
+    for (let i = 0; i < strokes; i++) burst(0.26, "highpass", 4800, 0.07, { when: 0.45 + i * 0.3, attack: 0.03, out });
+  },
   /** The secret: the machine splutters to life. */
   secret(pan: number): void {
     const out = panned(pan);

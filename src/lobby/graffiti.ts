@@ -2,9 +2,21 @@
 // his photo with paint drips, "Ryan woz ere" tagged beside him, "I REGRET
 // NOTHING" in a speech bubble, and an arrow at the machines saying he did it.
 //
-// It's dressed for the season, like the room: see SEASON_DRESS.
+// It's dressed for the season, like the room: see SEASON_DRESS. The outfit is
+// sprayed on in front of you: by itself the first time the piece comes into
+// view, and again whenever his face is tapped.
 
-import { CanvasTexture, Mesh, MeshStandardMaterial, PlaneGeometry, type Scene, SRGBColorSpace } from "three";
+import {
+  type Camera,
+  CanvasTexture,
+  Mesh,
+  MeshStandardMaterial,
+  PlaneGeometry,
+  type Raycaster,
+  type Scene,
+  SRGBColorSpace,
+  Vector3,
+} from "three";
 import type { Season } from "./season";
 
 /** The piece's size on the wall, in metres, and the canvas it's painted on. */
@@ -274,36 +286,146 @@ export interface GraffitiOptions {
   z: number;
   /** World x the arrow points down at (a broken machine). */
   blameX: number;
+  /** Paint the outfit on at once instead of spraying it. */
+  reduceMotion: boolean;
 }
 
-export function sprayGraffiti(scene: Scene, o: GraffitiOptions): void {
-  const canvas = document.createElement("canvas");
-  canvas.width = CW;
-  canvas.height = CH;
-  const ctx = canvas.getContext("2d");
+export interface Graffiti {
+  /** Whether a pointer's ray lands on the piece. */
+  hit(raycaster: Raycaster): boolean;
+  /** Wipes the outfit and sprays it on again. Returns how long that takes, in seconds. */
+  respray(): number;
+  /**
+   * Advances the spraying. The first time the piece has been on screen for a
+   * moment, the outfit sprays itself on.
+   */
+  update(dt: number, camera: Camera): void;
+}
+
+/** Where the spray goes, in canvas pixels: rows back and forth over the outfit, top to bottom. */
+function strokes(layer: HTMLCanvasElement): Array<[number, number]> {
+  const ctx = layer.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [];
+  const cell = 16;
+  const { data } = ctx.getImageData(0, 0, CW, CH);
+  const painted = (x: number, y: number): boolean => {
+    // Any paint near this point?
+    for (let dy = -cell; dy <= cell; dy += cell) {
+      for (let dx = -cell; dx <= cell; dx += cell) {
+        const px = Math.min(CW - 1, Math.max(0, Math.round(x + dx)));
+        const py = Math.min(CH - 1, Math.max(0, Math.round(y + dy)));
+        if (data[(py * CW + px) * 4 + 3] > 10) return true;
+      }
+    }
+    return false;
+  };
+  const dabs: Array<[number, number]> = [];
+  let row = 0;
+  for (let y = 0; y < CH; y += 34, row++) {
+    const xs: number[] = [];
+    for (let x = 0; x < CW; x += 26) if (painted(x, y)) xs.push(x);
+    if (row % 2) xs.reverse(); // back and forth, like a hand with a can
+    for (const x of xs) dabs.push([x + Math.sin(y * 0.05) * 6, y]);
+  }
+  return dabs;
+}
+
+/** How long the outfit takes to spray on, after the can's rattle. */
+const SPRAY_FOR = 1.8;
+const RATTLE_FOR = 0.45;
+
+export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (seconds: number) => void): Graffiti {
+  const make = (): [HTMLCanvasElement, CanvasRenderingContext2D | null] => {
+    const c = document.createElement("canvas");
+    c.width = CW;
+    c.height = CH;
+    return [c, c.getContext("2d")];
+  };
+  // The piece in layers: what's always there, the season's outfit, the speech
+  // bubble on top, and a mask of where the outfit has been sprayed so far.
+  const [canvas, ctx] = make();
+  const [base, baseCtx] = make();
+  const [outfit, outfitCtx] = make();
+  const [top, topCtx] = make();
+  const [mask, maskCtx] = make();
+  const [work, workCtx] = make();
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
   texture.anisotropy = 4;
-  const face = o.head ? stencil(o.head) : null;
   const toCanvasX = (worldX: number): number => ((worldX - o.x) / WIDTH + 0.5) * CW;
 
-  if (ctx) {
-    tag(ctx);
-    blame(ctx, Math.min(CW - 200, Math.max(1180, toCanvasX(o.blameX))));
+  if (baseCtx) {
+    tag(baseCtx);
+    blame(baseCtx, Math.min(CW - 200, Math.max(1180, toCanvasX(o.blameX))));
+    const face = o.head ? stencil(o.head) : null;
     if (face) {
       // Overspray first, then the crisp stencil.
-      ctx.save();
-      ctx.shadowColor = "rgba(28, 39, 72, 0.9)";
-      ctx.shadowBlur = 18;
-      ctx.drawImage(face, HEAD.x, HEAD.y);
-      ctx.restore();
-      ctx.drawImage(face, HEAD.x, HEAD.y);
+      baseCtx.save();
+      baseCtx.shadowColor = "rgba(28, 39, 72, 0.9)";
+      baseCtx.shadowBlur = 18;
+      baseCtx.drawImage(face, HEAD.x, HEAD.y);
+      baseCtx.restore();
+      baseCtx.drawImage(face, HEAD.x, HEAD.y);
     }
-    if (o.season) SEASON_DRESS[o.season](ctx);
-    else crown(ctx);
-    bubble(ctx);
+  }
+  if (outfitCtx) {
+    if (o.season) SEASON_DRESS[o.season](outfitCtx);
+    else crown(outfitCtx);
+  }
+  if (topCtx) bubble(topCtx);
+  const dabs = strokes(outfit);
+
+  /** A soft round puff of paint, for the mask. */
+  const puff = (x: number, y: number): void => {
+    if (!maskCtx) return;
+    const r = 44;
+    const g = maskCtx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, "rgba(255,255,255,1)");
+    g.addColorStop(0.6, "rgba(255,255,255,0.85)");
+    g.addColorStop(1, "rgba(255,255,255,0)");
+    maskCtx.fillStyle = g;
+    maskCtx.fillRect(x - r, y - r, r * 2, r * 2);
+  };
+
+  function compose(full: boolean): void {
+    if (!ctx || !workCtx) return;
+    ctx.clearRect(0, 0, CW, CH);
+    ctx.drawImage(base, 0, 0);
+    if (full) {
+      ctx.drawImage(outfit, 0, 0);
+    } else {
+      // The outfit, only where it has been sprayed so far.
+      workCtx.globalCompositeOperation = "source-over";
+      workCtx.clearRect(0, 0, CW, CH);
+      workCtx.drawImage(outfit, 0, 0);
+      workCtx.globalCompositeOperation = "destination-in";
+      workCtx.drawImage(mask, 0, 0);
+      workCtx.globalCompositeOperation = "source-over";
+      ctx.drawImage(work, 0, 0);
+    }
+    ctx.drawImage(top, 0, 0);
     texture.needsUpdate = true;
   }
+
+  /** Spraying: seconds since it began (negative while the can rattles), and how many dabs are down. */
+  let spraying: { t: number; done: number } | null = null;
+  let sprayed = false;
+  let seenFor = 0;
+
+  function start(): number {
+    maskCtx?.clearRect(0, 0, CW, CH);
+    if (o.reduceMotion) {
+      compose(true);
+      sprayed = true;
+      return 0;
+    }
+    spraying = { t: -RATTLE_FOR, done: 0 };
+    compose(false);
+    onSpray(SPRAY_FOR);
+    return RATTLE_FOR + SPRAY_FOR;
+  }
+
+  compose(false); // bare, until it's sprayed on
 
   // Paint on a dark wall: lit by the room, with a little of its own so it reads.
   const wall = new Mesh(
@@ -320,4 +442,41 @@ export function sprayGraffiti(scene: Scene, o: GraffitiOptions): void {
   );
   wall.position.set(o.x, o.y, o.z);
   scene.add(wall);
+  const centre = new Vector3(o.x, o.y, o.z);
+  const onScreen = new Vector3();
+
+  return {
+    hit(raycaster) {
+      return raycaster.intersectObject(wall, false).length > 0;
+    },
+    respray() {
+      sprayed = true;
+      return start();
+    },
+    update(dt, camera) {
+      if (!sprayed) {
+        // Once it has been in view for a moment, someone sprays the outfit on.
+        onScreen.copy(centre).project(camera);
+        const visible = Math.abs(onScreen.x) < 0.75 && Math.abs(onScreen.y) < 1 && onScreen.z < 1;
+        seenFor = visible ? seenFor + dt : 0;
+        if (seenFor > 0.7) {
+          sprayed = true;
+          start();
+        }
+      }
+      if (!spraying) return;
+      spraying.t += dt;
+      if (spraying.t < 0) return;
+      const due = Math.min(dabs.length, Math.ceil((spraying.t / SPRAY_FOR) * dabs.length));
+      if (due === spraying.done) return;
+      for (let k = spraying.done; k < due; k++) puff(dabs[k][0], dabs[k][1]);
+      spraying.done = due;
+      if (due >= dabs.length) {
+        spraying = null;
+        compose(true);
+      } else {
+        compose(false);
+      }
+    },
+  };
 }

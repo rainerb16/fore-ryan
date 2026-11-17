@@ -1,13 +1,9 @@
 // The room dressed for Christmas (see season.ts): a string of bulbs tacked
-// along the trim above the cabinets, a lit tree with presents between the
-// poster and the first cabinet, and a little snow drifting through the room.
+// along the trim above the cabinets, and a lit tree with presents between the
+// poster and the first cabinet.
 // Bulbs are instanced, so a whole wall of them is one draw call.
 
 import {
-  AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
-  CanvasTexture,
   Color,
   ConeGeometry,
   CylinderGeometry,
@@ -18,8 +14,6 @@ import {
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
-  Points,
-  PointsMaterial,
   type Scene,
   Shape,
   ShapeGeometry,
@@ -29,8 +23,8 @@ import { present } from "./decorations";
 
 const BULB_COLOURS = ["#ff3b3b", "#3bff7a", "#ffd23b", "#3bb4ff", "#ff7af0"];
 
-/** Advances the twinkle and the snow; called every frame. */
-export type Festive = (time: number, dt: number, cameraX: number) => void;
+/** Advances the twinkle; called every frame. */
+export type Festive = (time: number) => void;
 
 export interface FestiveOptions {
   /** Height of the wall trim the bulbs are tacked along, and where the wall is. */
@@ -39,9 +33,8 @@ export interface FestiveOptions {
   /** Where the tree stands. */
   treeX: number;
   treeZ: number;
-  /** No falling snow for people who prefer less motion. */
-  snow: boolean;
-  lowPower: boolean;
+  /** Stretches of wall the bulbs skip, as [from, to] in x: the poster hangs there. */
+  skip: Array<[number, number]>;
 }
 
 /** Many small bulbs as one mesh; returns the twinkle for them. */
@@ -77,7 +70,8 @@ function star(r: number): ShapeGeometry {
   return new ShapeGeometry(shape);
 }
 
-/** A small, lit tree, 1.4 m tall, with presents round its foot. */
+/** A small, lit tree, about 1.2 m tall, with presents round its foot. */
+const TREE_SCALE = 0.85;
 function tree(scene: Scene, x: number, z: number): (time: number) => void {
   const g = new Group();
   const needles = new MeshStandardMaterial({ color: "#1d5a33", roughness: 0.9 });
@@ -97,6 +91,7 @@ function tree(scene: Scene, x: number, z: number): (time: number) => void {
   g.add(present([0.14, 0.12, 0.14], "#1f7a3e", "#f4f4f4", -0.17, 0.2, -0.3));
   g.add(present([0.12, 0.2, 0.12], "#2a4fb8", "#e8e8e8", 0.02, 0.3, 0.1));
   g.position.set(x, 0, z);
+  g.scale.setScalar(TREE_SCALE);
   scene.add(g);
 
   // Bulbs spiralling up round the tree, just proud of its branches.
@@ -107,70 +102,22 @@ function tree(scene: Scene, x: number, z: number): (time: number) => void {
     const y = 0.22 + t * 1.08;
     const r = 0.3 * (1 - (y - 0.18) / 1.16) + 0.02;
     const a = t * Math.PI * 2 * 4.5;
-    at.push([x + Math.cos(a) * r, y, z + Math.sin(a) * r]);
+    at.push([x + Math.cos(a) * r * TREE_SCALE, y * TREE_SCALE, z + Math.sin(a) * r * TREE_SCALE]);
   }
   return bulbs(scene, at, 0.014, 1.3);
-}
-
-function snowflake(): CanvasTexture {
-  const canvas = document.createElement("canvas");
-  canvas.width = canvas.height = 16;
-  const ctx = canvas.getContext("2d");
-  if (ctx) {
-    const g = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 16, 16);
-  }
-  return new CanvasTexture(canvas);
-}
-
-/** Flakes drifting down between the camera and the cabinets, following the camera along. */
-function snow(scene: Scene, count: number, wallZ: number): (time: number, dt: number, cameraX: number) => void {
-  const box = { w: 7, h: 3.6, near: wallZ + 0.3, far: wallZ + 3.4 };
-  const positions = new Float32Array(count * 3);
-  const drift = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    positions.set([(Math.random() - 0.5) * box.w, Math.random() * box.h, box.near + Math.random() * (box.far - box.near)], i * 3);
-    drift[i] = Math.random() * Math.PI * 2;
-  }
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
-  // Grey, not white: bright points bloom into blobs.
-  const material = new PointsMaterial({
-    color: "#7d8296",
-    map: snowflake(),
-    size: 0.025,
-    transparent: true,
-    depthWrite: false,
-    blending: AdditiveBlending,
-  });
-  const points = new Points(geometry, material);
-  points.frustumCulled = false;
-  scene.add(points);
-  return (time, dt, cameraX) => {
-    points.position.x = cameraX;
-    for (let i = 0; i < count; i++) {
-      const k = i * 3;
-      positions[k + 1] -= (0.18 + (i % 5) * 0.03) * dt;
-      positions[k] += Math.sin(time * 0.6 + drift[i]) * 0.08 * dt;
-      if (positions[k + 1] < 0) positions[k + 1] += box.h;
-    }
-    (geometry.getAttribute("position") as BufferAttribute).needsUpdate = true;
-  };
 }
 
 export function decorateRoom(scene: Scene, o: FestiveOptions): Festive {
   // Along the trim, the length of the wall.
   const trim: Array<[number, number, number]> = [];
-  for (let x = -18; x <= 18; x += 0.14) trim.push([x, o.trimY - 0.035, o.wallZ + 0.05]);
+  for (let x = -18; x <= 18; x += 0.14) {
+    if (o.skip.some(([from, to]) => x >= from && x <= to)) continue;
+    trim.push([x, o.trimY - 0.035, o.wallZ + 0.05]);
+  }
   const twinkleTrim = bulbs(scene, trim, 0.016, 1.1);
   const twinkleTree = tree(scene, o.treeX, o.treeZ);
-  const fall = o.snow ? snow(scene, o.lowPower ? 140 : 260, o.wallZ) : null;
-  return (time, dt, cameraX) => {
+  return (time) => {
     twinkleTrim(time);
     twinkleTree(time);
-    fall?.(time, dt, cameraX);
   };
 }

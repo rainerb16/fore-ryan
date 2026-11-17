@@ -14,14 +14,15 @@ const { seasonOf } = await import("file://" + outfile);
 
 const on = (y, m, d) => new Date(y, m - 1, d, 12);
 
-test("the lobby is dressed for Christmas from 1 December to 6 January", () => {
+test("the lobby is dressed for Christmas from 16 November to 6 January", () => {
+  assert.equal(seasonOf(on(2026, 11, 16)), "christmas");
   assert.equal(seasonOf(on(2026, 12, 1)), "christmas");
   assert.equal(seasonOf(on(2026, 12, 24)), "christmas");
   assert.equal(seasonOf(on(2027, 1, 6)), "christmas");
 });
 
 test("and not the rest of the year", () => {
-  assert.equal(seasonOf(on(2026, 11, 30)), null);
+  assert.equal(seasonOf(on(2026, 11, 15)), null);
   assert.equal(seasonOf(on(2027, 1, 7)), null);
   assert.equal(seasonOf(on(2027, 8, 17)), null);
 });

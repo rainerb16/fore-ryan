@@ -67,9 +67,9 @@ folder.
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
 
-**From 1 December to 6 January** the room dresses for Christmas: twinkling bulbs along the
-trim above the cabinets, a lit tree with presents between the poster and the first cabinet,
-and snow drifting through the room (left out for anyone who prefers reduced motion). Add
+**From 16 November to 6 January** the room dresses for Christmas: twinkling bulbs along the
+trim above the cabinets, and a lit tree with presents between the poster and the first
+cabinet. Add
 `?season=christmas` to the address to preview it, or `?season=none` to turn it off.
 
 Each playable game gets a lit cabinet. A "Coming soon" cabinet and a few "Out of order"

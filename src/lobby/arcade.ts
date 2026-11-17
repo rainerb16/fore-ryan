@@ -91,9 +91,10 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
         trimY: TRIM_Y,
         wallZ: WALL_Z,
         treeX: (xOf(0) - CABINET_WIDTH / 2 + poster.position.x + 0.5) / 2,
-        treeZ: ROW_Z - 0.05,
-        snow: !reduceMotion,
-        lowPower,
+        // Back against the wall, so from the camera it stays in its gap rather than in front of the poster.
+        treeZ: WALL_Z + 0.3,
+        // The poster is 1 m wide; leave a little air either side of it.
+        skip: [[poster.position.x - 0.6, poster.position.x + 0.6]],
       })
     : null;
 
@@ -101,16 +102,23 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   const brokenAt = cabinets.map((c, i) => (c.broken ? xOf(i) : null)).filter((x): x is number => x !== null);
   // Right of the neon sign and the birthday cabinet's balloons, filling the
   // wall up to the top of the view.
-  if (brokenAt.length) {
-    sprayGraffiti(scene, {
-      head: images.head,
-      season,
-      x: brokenAt[0] + SPACING,
-      y: TRIM_Y + 0.6,
-      z: WALL_Z + 0.02,
-      blameX: brokenAt[1] ?? brokenAt[0],
-    });
-  }
+  const graffitiX = (brokenAt[0] ?? 0) + SPACING;
+  const graffitiPan = (): number => MathUtils.clamp((graffitiX - camera.position.x) / 1.5, -1, 1);
+  const graffiti = brokenAt.length
+    ? sprayGraffiti(
+        scene,
+        {
+          head: images.head,
+          season,
+          x: graffitiX,
+          y: TRIM_Y + 0.6,
+          z: WALL_Z + 0.02,
+          blameX: brokenAt[1] ?? brokenAt[0],
+          reduceMotion,
+        },
+        (seconds) => sfx.spray(graffitiPan(), seconds),
+      )
+    : null;
 
   // Back far enough that a whole cabinet fits, even on a portrait phone; the
   // sign shrinks to whatever width of wall that leaves in view.
@@ -207,7 +215,11 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
     }
     if (Math.hypot(dx, dy) > 10) return;
     const hit = cabinetAt(e.clientX, e.clientY);
-    if (hit < 0) return;
+    if (hit < 0) {
+      // Not a cabinet: maybe Ryan on the wall, who gets his outfit sprayed on again.
+      if (graffiti?.hit(raycaster)) graffiti.respray();
+      return;
+    }
     const at = playable.indexOf(hit);
     if (at < 0) return;
     if (cabinets[hit].broken) {
@@ -219,7 +231,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   });
 
   canvas.addEventListener("pointermove", (e) => {
-    canvas.style.cursor = playable.includes(cabinetAt(e.clientX, e.clientY)) ? "pointer" : "";
+    const over = cabinetAt(e.clientX, e.clientY);
+    canvas.style.cursor = playable.includes(over) || (over < 0 && graffiti?.hit(raycaster)) ? "pointer" : "";
   });
 
   function cabinetAt(clientX: number, clientY: number): number {
@@ -243,7 +256,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
       const cues = c.broken?.takeCues();
       if (cues?.length) play(cues, i);
     });
-    festive?.(time, dt, camera.position.x);
+    festive?.(time);
+    graffiti?.update(dt, camera);
 
     if (launching) {
       if (launching.started < 0) launching.started = time;
