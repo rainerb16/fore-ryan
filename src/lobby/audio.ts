@@ -197,6 +197,14 @@ export const sfx = {
     tone(1400, 0.03, "square", 0, 0.02);
     burst(0.25, "bandpass", 900, 0.03, { attack: 0.06, q: 1.5 });
   },
+  /** The little bell over a shop door, as it opens. */
+  doorBell(): void {
+    [0, 0.13, 0.3].forEach((at, i) => {
+      tone(2637, 0.6, "sine", at, 0.07 / (i + 1));
+      tone(3951, 0.4, "sine", at + 0.01, 0.035 / (i + 1));
+    });
+    burst(0.4, "bandpass", 700, 0.04, { attack: 0.05, q: 1 }); // the door's whoosh
+  },
   /** A coin dropping in, and the credit registering. */
   coin(): void {
     tone(2637, 0.12, "triangle", 0, 0.08);
