@@ -74,7 +74,7 @@ function cabinetSantaHat(x: number): Group {
 }
 
 /** A wrapped box with a ribbon cross, sitting on the floor. */
-function present(size: [number, number, number], paper: string, ribbon: string, x: number, z: number, turn: number): Group {
+export function present(size: [number, number, number], paper: string, ribbon: string, x: number, z: number, turn: number): Group {
   const [w, h, d] = size;
   const g = new Group();
   const tie = gloss(ribbon);

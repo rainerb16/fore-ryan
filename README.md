@@ -59,9 +59,15 @@ folder.
 - `room.ts`: carpet, wall, neon sign, and lighting
 - `look.ts`: reflections and bloom
 - `poster.ts`: the Action Furnace poster
+- `season.ts`, `festive.ts`: the Christmas dressing (see below)
 
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
+
+**From 1 December to 6 January** the room dresses for Christmas: twinkling bulbs along the
+trim above the cabinets, a lit tree with presents between the poster and the first cabinet,
+and snow drifting through the room (left out for anyone who prefers reduced motion). Add
+`?season=christmas` to the address to preview it, or `?season=none` to turn it off.
 
 Each playable game gets a lit cabinet. A "Coming soon" cabinet and a few "Out of order"
 machines fill out the row; they're scenery only.
@@ -216,6 +222,22 @@ The whole game is one button: Space, a click, or a tap.
 While holding, drag to look around mid-glide. Take-off plays in slow motion, with Santa's
 sleigh crossing the sky.
 
+### The Christmas line
+
+A glowing gold line crosses the landing hill at 130 m, with a lit star beside it. Land cleanly
+past it and Christmas arrives: fireworks over Calgary and "Jingle Bells" (1857, public
+domain). It takes a good or perfect take-off and a long glide, and a late take-off can never
+reach it; `test/skijump.test.mjs` holds it to that. It's `CHRISTMAS_LINE_M` in
+`rules/rules.ts`, and it changes nothing about the score.
+
+### Sound
+
+Like the golf game's, every sound is synthesized with WebAudio, with no audio files
+(`src/audio.ts`): skis hissing on the inrun, wind in flight that rises as you lean in and
+deepens in slow motion, sleigh bells panning across with Santa, a landing thud and a crowd
+that roars louder for longer jumps, the crash, and the fireworks. The 🔊 button mutes it, and
+the choice is remembered. Sound pauses when the tab is hidden.
+
 ### Scoring
 
 The score is the distance in centimetres, so a 90.5 m jump scores 9050. The server re-judges
@@ -239,7 +261,8 @@ Everything lives under `games/christmas-2026/`:
 | `src/structure.ts`, `src/terrain.ts`, `src/trees.ts`, `src/snow.ts` | The jump tower and inrun, the hillside, the spruce, and the snow surface |
 | `src/city.ts` | Calgary at night, landmarks included |
 | `src/ryan.ts`, `src/head.ts` | Ryan's jointed body and his photo head with Santa's hat and beard |
-| `src/lip.ts`, `src/sleigh.ts` | The lit lip and sponsor boards; Santa's sleigh and the presents spilled in a crash |
+| `src/lip.ts`, `src/sleigh.ts` | The lit lip, sponsor boards, and the Christmas line; Santa's sleigh and the presents spilled in a crash |
+| `src/audio.ts`, `src/fireworks.ts` | All the sound, and the fireworks |
 | `src/board.ts` | Posting a jump, and the podium |
 
 Like the golf game, `rules/` has no rendering in it, so `netlify/functions/` and

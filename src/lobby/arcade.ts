@@ -6,9 +6,11 @@ import { MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type 
 import type { GameEntry } from "../../shared/games";
 import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
+import { decorateRoom } from "./festive";
 import { applyLook } from "./look";
 import { buildPoster } from "./poster";
-import { buildRoom, WALL_Z } from "./room";
+import { buildRoom, TRIM_Y, WALL_Z } from "./room";
+import { seasonOf } from "./season";
 import type { Scores } from "./screen";
 
 const SPACING = CABINET_WIDTH + 0.26;
@@ -67,6 +69,20 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   poster.position.set(xOf(0) - SPACING * 1.45, 1.45, WALL_Z + 0.03);
   scene.add(poster);
 
+  // Christmas in the arcade, in season: the tree goes in the gap between the
+  // poster and the first cabinet.
+  const reduceMotion = prefersReducedMotion();
+  const festive = seasonOf(new Date(), window.location.search) === "christmas"
+    ? decorateRoom(scene, {
+        trimY: TRIM_Y,
+        wallZ: WALL_Z,
+        treeX: (xOf(0) - CABINET_WIDTH / 2 + poster.position.x + 0.5) / 2,
+        treeZ: ROW_Z - 0.05,
+        snow: !reduceMotion,
+        lowPower,
+      })
+    : null;
+
   // Back far enough that a whole cabinet fits, even on a portrait phone; the
   // sign shrinks to whatever width of wall that leaves in view.
   let distance = 3;
@@ -91,7 +107,6 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   let focus = 0; // index into playable
   let railX = xOf(playable[0]);
   let launching: { from: Vector3; to: Vector3; look: Vector3; started: number } | null = null;
-  const reduceMotion = prefersReducedMotion();
 
   function setFocus(next: number): void {
     focus = MathUtils.clamp(next, 0, playable.length - 1);
@@ -170,6 +185,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart }: 
   runLoop((time, dt) => {
     room.update(time);
     for (const c of cabinets) c.update(time);
+    festive?.(time, dt, camera.position.x);
 
     if (launching) {
       if (launching.started < 0) launching.started = time;
