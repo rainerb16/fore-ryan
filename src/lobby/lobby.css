@@ -194,15 +194,45 @@ body:not(.webgl):not(.no-webgl) #credit { visibility: hidden; }
 
 body.webgl #credit {
   position: fixed;
-  /* Below the neon tube that runs along the top of the wall. */
-  top: calc(58px + env(safe-area-inset-top));
-  right: 32px;
+  /* Bottom left: the top of the wall has the neon sign and the graffiti,
+     and this corner is clear at every cabinet. */
+  bottom: calc(28px + env(safe-area-inset-bottom));
+  left: 28px;
   margin: 0;
   pointer-events: none;
 }
 
 @media (max-width: 600px) {
-  body.webgl #credit { top: calc(54px + env(safe-area-inset-top)); right: 22px; }
-  #credit small { font-size: 10px; }
-  #credit span { font-size: 30px; }
+  /* Phones: one small line signed under the buttons, where the wall art can't be covered. */
+  body.webgl #credit {
+    left: 0;
+    right: 0;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 2; /* over the controls' dark fade */
+    flex-direction: row;
+    justify-content: center;
+    align-items: baseline;
+    gap: 6px;
+  }
+  body.webgl #controls { padding-bottom: calc(36px + env(safe-area-inset-bottom)); }
+  #credit small { font-size: 9px; letter-spacing: 0.25em; }
+  #credit span { font-size: 20px; transform: rotate(-4deg); }
+}
+
+/* --- sound ------------------------------------------------------------------ */
+
+#muteBtn { display: none; }
+body.webgl #muteBtn {
+  display: block;
+  position: fixed;
+  top: calc(14px + env(safe-area-inset-top));
+  left: 16px;
+  z-index: 3;
+  padding: 7px 11px;
+  border: 1px solid rgba(185, 169, 214, 0.35);
+  border-radius: 999px;
+  background: rgba(7, 4, 15, 0.6);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }

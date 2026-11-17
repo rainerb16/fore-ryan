@@ -112,6 +112,13 @@ test("the Christmas line takes a timed take-off and a long glide", () => {
   assert.ok(best(0.02) > R.CHRISTMAS_LINE_M, "a perfect take-off can reach it");
   assert.ok(best(0.2) > R.CHRISTMAS_LINE_M, "so can a good one");
   assert.ok(best(null) < R.CHRISTMAS_LINE_M, "a late take-off never can");
+  // Not even with the tap just after the lip that still gives a pop.
+  let lateFar = 0;
+  for (let hold = 0; hold < 6; hold += 0.05) {
+    const j = R.simulate(null, (j) => j.time - j.takeoffTime < hold, true);
+    if (!j.crashed) lateFar = Math.max(lateFar, j.distance);
+  }
+  assert.ok(lateFar < R.CHRISTMAS_LINE_M, "not even with a tap just after the lip");
   assert.ok(R.simulate(0.02, () => false).distance < R.CHRISTMAS_LINE_M, "nor a perfect one without gliding");
 });
 
@@ -136,6 +143,20 @@ test("an honest jump is accepted, unflagged, at its distance in centimetres", ()
   assert.equal(v.ok, true);
   assert.equal(v.flagged, false, v.reasons?.join("; "));
   assert.equal(v.points, Math.round(details.distance_m * 100));
+});
+
+test("a late take-off saved by a tap just after the lip is accepted, not flagged", () => {
+  // The case a player hits all the time: misses the lip, taps a moment later, glides.
+  let far = null;
+  for (let hold = 0; hold < 6; hold += 0.05) {
+    const j = R.simulate(null, (j) => j.time - j.takeoffTime < hold, true);
+    if (!j.crashed && (!far || j.distance > far.distance)) far = j;
+  }
+  assert.equal(far.quality, "late");
+  assert.ok(far.distance > 115, `a tapped late take-off glides well past an untapped one (${far.distance.toFixed(1)} m)`);
+  const verdict = R.judgeJump(R.detailsOf(far));
+  assert.equal(verdict.ok, true);
+  assert.equal(verdict.flagged, false, verdict.reasons?.join("; "));
 });
 
 test("a crashed jump is refused", () => {

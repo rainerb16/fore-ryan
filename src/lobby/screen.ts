@@ -3,7 +3,7 @@
 // shows changes, not every frame.
 
 import type { CanvasTexture } from "three";
-import type { GameEntry } from "../../shared/games";
+import { formatScore, type GameEntry } from "../../shared/games";
 import type { LeaderboardEntry } from "../../shared/scores";
 import { paint, type Palette } from "./textures";
 
@@ -145,7 +145,7 @@ export class AttractScreen {
       this.text(ctx, ORDINALS[i], y, 18, this.palette.primary, 20);
       this.text(ctx, entry.display_name.slice(0, 10).toUpperCase(), y, 18, colour, 74);
       ctx.textAlign = "right";
-      this.text(ctx, entry.points.toLocaleString("en-US"), y, 18, colour, W - 20);
+      this.text(ctx, formatScore(this.game, entry.points), y, 18, colour, W - 20);
       ctx.textAlign = "center";
     });
   }

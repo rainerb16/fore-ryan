@@ -11,6 +11,8 @@ export interface GameEntry {
   released: string;
   /** Whether a higher or a lower score wins. */
   sort: "desc" | "asc";
+  /** What a score is: plain points, or centimetres shown as metres (the ski jump). */
+  unit: "points" | "cm";
   /** Page path, with a trailing slash. */
   path: string;
 }
@@ -23,6 +25,7 @@ export const GAMES: readonly GameEntry[] = [
     year: 2026,
     released: "2026-12-24",
     sort: "desc",
+    unit: "cm",
     path: "/games/christmas-2026/",
   },
   {
@@ -32,9 +35,14 @@ export const GAMES: readonly GameEntry[] = [
     year: 2026,
     released: "2026-08-17",
     sort: "desc",
+    unit: "points",
     path: "/games/birthday-2026/",
   },
 ];
+
+/** A score as people read it: "214,700" for golf, "118.4 m" for the ski jump. */
+export const formatScore = (game: GameEntry, points: number): string =>
+  game.unit === "cm" ? `${(points / 100).toFixed(1)} m` : points.toLocaleString("en-US");
 
 export const gameById = (id: unknown): GameEntry | undefined =>
   GAMES.find((g) => g.id === id);

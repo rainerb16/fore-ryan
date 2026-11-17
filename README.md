@@ -60,17 +60,40 @@ folder.
 - `look.ts`: reflections and bloom
 - `poster.ts`: the Action Furnace poster
 - `season.ts`, `festive.ts`: the Christmas dressing (see below)
+- `audio.ts`: the room's sound
+- `broken.ts`: what the out-of-order machines do when kicked
+- `graffiti.ts`: Ryan, spray-painted on the wall (see below)
 
 Arrow keys, swipes, taps, or the on-screen buttons move between cabinets. Enter, PLAY, or
 a tap on the focused cabinet zooms into its screen and loads the game.
 
-**From 1 December to 6 January** the room dresses for Christmas: twinkling bulbs along the
-trim above the cabinets, a lit tree with presents between the poster and the first cabinet,
-and snow drifting through the room (left out for anyone who prefers reduced motion). Add
+**From 16 November to 6 January** the room dresses for Christmas: twinkling bulbs along the
+trim above the cabinets, and a lit tree with presents between the poster and the first
+cabinet. Add
 `?season=christmas` to the address to preview it, or `?season=none` to turn it off.
 
 Each playable game gets a lit cabinet. A "Coming soon" cabinet and a few "Out of order"
-machines fill out the row; they're scenery only.
+machines fill out the row.
+
+**The out-of-order machines** are stops on the rail too, and there PLAY becomes KICK. Every
+kick rocks the cabinet, and every fourth spits a coin out of the return. Each has a
+personality: a glitchy one that sparks and flickers messages on its dead screen
+(`ERROR 404: FUN NOT FOUND`), and an overheating one that vents steam and asks you to call
+Action Furnace. Kick the same machine ten times in quick succession and it splutters to life
+with a high-score table (`RYAN 999,999`) for a few seconds before dying again.
+
+**The graffiti.** Above the broken machines, Ryan is sprayed on the wall as a three-tone
+stencil made from his photo, with paint drips, `Ryan woz ere` tagged beside him, "I REGRET
+NOTHING" in a speech bubble, and an arrow pointing at the machines: `HE DID THIS`. He's dressed
+for the season, on the same dates as the room: a spray-painted Santa hat and beard at Christmas,
+and a gold crown the rest of the year. To dress him for a new season (bunny ears at Easter),
+add it to `Season` in `season.ts` with its dates, then add its drawing to `SEASON_DRESS` in
+`graffiti.ts`; TypeScript won't build until both are there.
+
+**Sound** is synthesized like the games' (`audio.ts`): a quiet room hum with the odd jingle
+from a machine down the row, a tick as the camera moves, a coin dropping in on PLAY, and the
+broken machines' kicks, sparks, steam and secret. It starts on the first tap or key press,
+the 🔊 button mutes it (remembered), and it stops when you leave the lobby.
 
 - **Phones** get a smaller shadow map and half-resolution bloom. The pixel ratio is capped
   at 1.5 everywhere.
