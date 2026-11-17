@@ -205,17 +205,27 @@ function burst(
 }
 
 /**
- * One shake of sleigh bells: the bright rattle of the pellets inside, and a
- * handful of small, slightly out-of-tune bells ringing at once.
+ * Sleigh bells tuned to the song: the notes of each chord, three octaves up.
+ * Bells ringing chord tones blend with the music instead of clashing with it.
  */
-function shake(out: AudioNode, when: number, vol: number): void {
-  burst(0.09, "highpass", 7000, vol * 0.9, { when, attack: 0.003, out });
-  for (let i = 0; i < 5; i++) {
-    const f = 2400 + Math.random() * 3200;
-    const at = when + Math.random() * 0.035;
-    tone(f, 0.2, "sine", at, vol, out);
-    tone(f * 2.76, 0.09, "sine", at, vol * 0.4, out); // a bell's clangy overtone
-  }
+const BELLS = {
+  C: [2093.0, 2637.0, 3136.0], // C, E, G
+  F: [2793.8, 3520.0, 4186.0], // F, A, C
+  G: [2349.3, 3136.0, 3951.1], // D, G, B
+} as const;
+type Chord = keyof typeof BELLS;
+
+/**
+ * One shake of sleigh bells: a soft rattle of the pellets inside, then the
+ * chord's bells ringing in a quick, even ripple.
+ */
+function shake(out: AudioNode, when: number, vol: number, chord: Chord = "C"): void {
+  burst(0.05, "highpass", 8000, vol * 0.45, { when, attack: 0.002, out });
+  BELLS[chord].forEach((f, i) => {
+    const at = when + i * 0.012;
+    tone(f, 0.22, "sine", at, vol, out);
+    tone(f * 2, 0.08, "sine", at, vol * 0.25, out); // the octave above, in tune
+  });
 }
 
 // "Jingle Bells" (James Lord Pierpont, 1857), the chorus twice: [frequency, beats].
@@ -231,8 +241,9 @@ const JINGLE_BELLS: Array<[number, number]> = [
   [F5, 1], [F5, 1], [F5, 1], [F5, 1], [F5, 1], [E5, 1], [E5, 1], [E5, 0.5], [E5, 0.5],
   [G5, 1], [G5, 1], [F5, 1], [D5, 1], [C5, 4],
 ];
-/** The bass under each bar of four beats: C, C, C, C, F, C, G, G, then again ending on C. */
-const BASS = [131, 131, 131, 131, 175, 131, 196, 196, 131, 131, 131, 131, 175, 131, 196, 131];
+/** The chord of each bar of four beats; the bass and the bells both follow it. */
+const CHORDS: Chord[] = ["C", "C", "C", "C", "F", "C", "G", "G", "C", "C", "C", "C", "F", "C", "G", "C"];
+const BASS: Record<Chord, number> = { C: 131, F: 175, G: 196 };
 
 const BEAT = 0.21;
 /** How long the song lasts, so the fireworks can last as long. */
@@ -250,14 +261,19 @@ function playJingleBells(): void {
     tone(freq * 2, beats * BEAT * 0.5, "sine", at, 0.05, out); // a little sparkle on top
     at += beats * BEAT;
   }
-  BASS.forEach((freq, bar) => {
+  CHORDS.forEach((chord, bar) => {
+    const freq = BASS[chord];
     const t = START + bar * 4 * BEAT;
     tone(freq, BEAT * 1.6, "sine", t, 0.16, out);
     tone(freq * 1.5, BEAT * 1.6, "sine", t + 2 * BEAT, 0.11, out);
   });
-  // Sleigh bells shaken on every half-beat, harder on the beat, as in every recording ever made.
+  // Sleigh bells shaken on every half-beat, harder on the beat, as in every
+  // recording ever made, ringing the bar's chord.
   const halves = Math.round((at - START) / (BEAT / 2));
-  for (let i = 0; i < halves; i++) shake(out, START + (i * BEAT) / 2, i % 2 ? 0.028 : 0.056);
+  for (let i = 0; i < halves; i++) {
+    const chord = CHORDS[Math.min(CHORDS.length - 1, Math.floor(i / 8))];
+    shake(out, START + (i * BEAT) / 2, i % 2 ? 0.028 : 0.056, chord);
+  }
 }
 
 export const sfx = {
