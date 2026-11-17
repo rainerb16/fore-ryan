@@ -1,20 +1,28 @@
 // Marks the lip, so players can see exactly when to tap: a glowing red and
 // green line across the deck at the edge, and a sponsor board down each side of
 // the take-off table reading "Happy Holidays from" and the Action Furnace logo,
-// the way real jumps carry boards along the table.
+// the way real jumps carry boards along the table. Also the Christmas line down
+// the landing hill: land past it for the fireworks.
 
 import {
   BoxGeometry,
   CanvasTexture,
+  CylinderGeometry,
+  DoubleSide,
   Mesh,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   SRGBColorSpace,
+  Shape,
+  ShapeGeometry,
+  Sprite,
+  SpriteMaterial,
   type Scene,
 } from "three";
-import { INRUN } from "../rules";
+import { CHRISTMAS_LINE_M, hillY, INRUN, landingAngle, xAtDistance } from "../rules";
 import { glowing } from "./glow";
+import { canvasTexture } from "./world";
 
 const LOGO_SRC = "/assets/af/af-logo.png";
 /** Brand navy, from the Action Furnace brand guide. */
@@ -94,4 +102,58 @@ export function buildLipMarker(scene: Scene): void {
     board.rotation.set(0, side > 0 ? 0 : Math.PI, side * tilt);
     scene.add(board);
   }
+}
+
+/** A five-pointed star, `r` across its points. */
+function star(r: number): ShapeGeometry {
+  const shape = new Shape();
+  for (let i = 0; i < 10; i++) {
+    const a = Math.PI / 2 + (i * Math.PI) / 5;
+    const radius = i % 2 ? r * 0.42 : r;
+    if (i === 0) shape.moveTo(Math.cos(a) * radius, Math.sin(a) * radius);
+    else shape.lineTo(Math.cos(a) * radius, Math.sin(a) * radius);
+  }
+  shape.closePath();
+  return new ShapeGeometry(shape);
+}
+
+/**
+ * A glowing gold line across the landing hill at CHRISTMAS_LINE_M, with a lit
+ * star on a pole beside it, on the camera's side, so it reads from the air.
+ */
+export function buildChristmasLine(scene: Scene): void {
+  const x = xAtDistance(CHRISTMAS_LINE_M);
+  const y = hillY(x);
+  const gold = new MeshBasicMaterial({ color: glowing("#ffc93b", 2.6) });
+
+  const line = new Mesh(new BoxGeometry(0.35, 0.02, 10), gold);
+  line.position.set(x, y + 0.03, 0);
+  line.rotation.z = -landingAngle(x);
+  scene.add(line);
+
+  const poleHeight = 3.2;
+  const pole = new Mesh(new CylinderGeometry(0.06, 0.06, poleHeight, 10), new MeshStandardMaterial({ color: "#b8b8c2", metalness: 0.6, roughness: 0.4 }));
+  pole.position.set(x, y + poleHeight / 2, 6.2);
+  scene.add(pole);
+  const top = new Mesh(star(0.6), new MeshBasicMaterial({ color: glowing("#ffd166", 3), side: DoubleSide }));
+  top.position.set(x, y + poleHeight + 0.45, 6.2);
+  scene.add(top);
+
+  const label = new Sprite(new SpriteMaterial({
+    map: canvasTexture(256, 64, (ctx) => {
+      ctx.font = "bold 34px Trebuchet MS, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.lineWidth = 6;
+      ctx.strokeStyle = "rgba(6, 11, 30, 0.85)";
+      const text = `${CHRISTMAS_LINE_M} m`;
+      ctx.strokeText(text, 128, 34);
+      ctx.fillStyle = "#ffd166";
+      ctx.fillText(text, 128, 34);
+    }),
+    depthWrite: false,
+  }));
+  label.scale.set(3.2, 0.8, 1);
+  label.position.set(x, y + poleHeight + 1.45, 6.2);
+  scene.add(label);
 }

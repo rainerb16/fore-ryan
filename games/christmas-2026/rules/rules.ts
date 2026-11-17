@@ -20,6 +20,13 @@ export interface JumpDetails {
   duration_ms: number;
 }
 
+/**
+ * Land cleanly past this and Christmas arrives: fireworks over Calgary and
+ * Jingle Bells. It takes a timed take-off and a long glide; a late take-off
+ * can never reach it. Presentation only: the score is still the distance.
+ */
+export const CHRISTMAS_LINE_M = 130;
+
 /** Points are centimetres, so they fit the existing integer column. */
 export const pointsFor = (distanceM: number): number => Math.round(distanceM * 100);
 

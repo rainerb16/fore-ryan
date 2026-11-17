@@ -2,7 +2,8 @@ import "./styles.css";
 import { startRun } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
-import { distanceAt, GAME_ID, newJump, step, timeScale, type Jump } from "../rules";
+import { CHRISTMAS_LINE_M, distanceAt, GAME_ID, newJump, PHYSICS, step, timeScale, type Jump } from "../rules";
+import { hush, initAudio, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
 import { armPost, loadPodium } from "./board";
 import { attachInput, readInput, readLook, resetInput } from "./input";
 
@@ -47,6 +48,24 @@ function call(text: string, bad = false, ms = 1400): void {
 }
 const hideCallout = (): void => callout.classList.remove("on");
 
+const muteBtn = $<HTMLButtonElement>("muteBtn");
+function showMute(): void {
+  muteBtn.textContent = isMuted() ? "🔇" : "🔊";
+  muteBtn.setAttribute("aria-pressed", String(isMuted()));
+}
+muteBtn.addEventListener("click", () => {
+  setMuted(!isMuted());
+  if (!isMuted()) initAudio();
+  showMute();
+  // Otherwise Space would press this button again instead of jumping.
+  muteBtn.blur();
+});
+showMute();
+
+/** Real seconds Santa's sleigh is in the sky: its crossing, part of it in slow motion. */
+const sleighSeconds = (crossing: number): number =>
+  PHYSICS.slowmoFor / PHYSICS.slowmoScale + Math.max(0, crossing - PHYSICS.slowmoFor);
+
 function openPodium(note = ""): void {
   for (const screen of [startScreen, resultScreen, $("noWebgl")]) screen.hidden = true;
   podiumScreen.hidden = false;
@@ -64,7 +83,7 @@ async function boot(): Promise<void> {
     return;
   }
 
-  const [{ createJumpView }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
+  const [{ createJumpView, SLEIGH_CROSSING }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
   const view = createJumpView($<HTMLCanvasElement>("scene"), head);
   attachInput();
 
@@ -76,8 +95,13 @@ async function boot(): Promise<void> {
   let acc = 0;
   /** This jump's run token, asked for as it begins so the server has its own clock on it. */
   let token: Promise<string | null> = Promise.resolve(null);
+  /** Whether this jump cleared the Christmas line. */
+  let christmas = false;
 
   function start(): void {
+    initAudio();
+    hush();
+    christmas = false;
     jump = newJump();
     Object.assign(prev, jump);
     view.reset();
@@ -105,9 +129,11 @@ async function boot(): Promise<void> {
     } else {
       const isBest = d > best();
       if (isBest) store.set(BEST_KEY, d.toFixed(2));
-      $("resultTitle").textContent = isBest ? "New personal best! 🎄" : "Nice jump!";
+      $("resultTitle").textContent = christmas ? "Merry Christmas! 🎆" : isBest ? "New personal best! 🎄" : "Nice jump!";
       $("resultDistance").textContent = metres(d);
-      $("resultDetail").textContent = `${jump.quality} take-off · best ${metres(best())}`;
+      $("resultDetail").textContent =
+        `${jump.quality} take-off · ${christmas && isBest ? "new personal best!" : `best ${metres(best())}`}`;
+      if (isBest && !christmas) sfx.best();
     }
     resultScreen.hidden = false;
     void armPost(jump, token, openPodium);
@@ -115,13 +141,34 @@ async function boot(): Promise<void> {
 
   /** Callouts as the jump moves from one phase to the next. */
   function onPhase(from: Jump["phase"], to: Jump["phase"]): void {
-    if (from === "ready" && to === "inrun") call("Tap at the lip!", false, 0);
+    if (from === "ready" && to === "inrun") {
+      call("Tap at the lip!", false, 0);
+      sfx.pushOff();
+    }
     if (to === "flight") {
       const q = jump.quality;
+      sfx.takeoff(q ?? "late");
+      sfx.sleigh(sleighSeconds(SLEIGH_CROSSING));
       if (jump.tapAt === null) call("Late!", true);
       else call(q === "perfect" ? "PERFECT!" : q === "good" ? "Good!" : "Late!", q === "late");
     }
-    if (to === "outrun") call(jump.crashed ? "CRASH!" : metres(jump.distance ?? 0), jump.crashed, 2000);
+    if (to === "outrun") {
+      const d = jump.distance ?? 0;
+      if (jump.crashed) {
+        call("CRASH!", true, 2000);
+        sfx.crash();
+      } else if (d >= CHRISTMAS_LINE_M) {
+        // Past the line: Christmas comes early.
+        christmas = true;
+        call("MERRY CHRISTMAS!", false, 4000);
+        sfx.land(d);
+        sfx.jingleBells();
+        view.celebrate(JINGLE_SECONDS, sfx.boom);
+      } else {
+        call(metres(d), false, 2000);
+        sfx.land(d);
+      }
+    }
     if (to === "done") finish();
   }
 
@@ -148,12 +195,19 @@ async function boot(): Promise<void> {
           lastPhase = jump.phase;
         }
       }
+      // Skis hiss on the inrun and the outrun; the wind picks up in flight, more when leaning in.
+      const air = Math.hypot(jump.vx, jump.vy);
+      if (jump.phase === "inrun") setLayers(Math.min(1, jump.speed / 26), Math.min(1, jump.speed / 26) * 0.25);
+      else if (jump.phase === "flight") setLayers(0, Math.min(1, air / 28) * (jump.holding ? 1 : 0.6), timeScale(jump) < 1);
+      else if (jump.phase === "outrun") setLayers(jump.crashed ? 0 : Math.min(1, jump.speed / 26) * 0.8, 0);
+      else setLayers(0, 0);
       readout.textContent =
         jump.phase === "inrun" ? `${Math.round(jump.speed * 3.6)} km/h`
         : jump.phase === "flight" ? metres(distanceAt(Math.max(jump.x, 0)))
         : jump.distance !== null ? metres(jump.distance) : "";
     }
 
+    if (!playing) setLayers(0, 0);
     view.render(jump, dt, prev, playing ? acc / STEP : 1, readLook());
     requestAnimationFrame(frame);
   };

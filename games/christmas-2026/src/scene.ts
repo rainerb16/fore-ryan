@@ -6,7 +6,8 @@ import { DirectionalLight, Fog, HemisphereLight, MathUtils, PerspectiveCamera, S
 import { createBloom, createView, isLowPower } from "../../../shared/three";
 import { hillY, inrunPosition, PHYSICS, type Jump } from "../rules";
 import { buildCity } from "./city";
-import { buildLipMarker } from "./lip";
+import { buildFireworks } from "./fireworks";
+import { buildChristmasLine, buildLipMarker } from "./lip";
 import { buildRyan, type Stance } from "./ryan";
 import { buildSleigh, presentSpill } from "./sleigh";
 import { buildStructures } from "./structure";
@@ -25,10 +26,12 @@ export interface JumpView {
   render(j: Jump, dt: number, prev: Jump, blend: number, look: Readonly<{ x: number; y: number }>): void;
   /** Put everything back for a fresh jump. */
   reset(): void;
+  /** Fireworks over the city for `seconds`; `onBurst` hears each one, 0 near to 1 far. */
+  celebrate(seconds: number, onBurst?: (far: number) => void): void;
 }
 
 /** How long, in simulation seconds after take-off, the sleigh takes to cross. */
-const SLEIGH_CROSSING = 2.2;
+export const SLEIGH_CROSSING = 2.2;
 
 /** Where the jumper is, and which way the skis point. */
 function poseOf(j: Jump): { x: number; y: number; angle: number } {
@@ -77,6 +80,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   buildTerrain(scene, lowPower);
   buildStructures(scene, lowPower);
   buildLipMarker(scene);
+  buildChristmasLine(scene);
   const world = buildWorld(scene, lowPower);
   const city = buildCity(scene, lowPower);
   const ryan = buildRyan(headImage);
@@ -85,6 +89,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   const sleigh = buildSleigh();
   scene.add(sleigh);
   const spill = presentSpill(scene);
+  const fireworks = buildFireworks(scene, lowPower);
   let spilled = false;
 
   const camera = new PerspectiveCamera(50, 1, 0.5, 4000); // out to the far mountains
@@ -101,6 +106,7 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
   const forward = new Vector3();
   const right = new Vector3();
   const up = new Vector3();
+  const screenUp = new Vector3();
   let first = true;
   /** The camera's swing round Ryan while gliding (radians). */
   const orbit = { yaw: 0, pitch: 0 };
@@ -179,12 +185,15 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
       camera.lookAt(camLook);
       ryan.faceCamera(camera, j.crashed);
 
+      camera.getWorldDirection(forward);
+      right.crossVectors(forward, camera.up).normalize();
+      screenUp.crossVectors(right, forward).normalize();
+      fireworks.update(dt, camPos, forward, right, screenUp);
+
       // Santa crosses the sky in the upper part of whatever the camera is looking at.
       const q = sinceTakeoff / SLEIGH_CROSSING;
       sleigh.visible = q > 0 && q < 1;
       if (sleigh.visible) {
-        camera.getWorldDirection(forward);
-        right.crossVectors(forward, camera.up).normalize();
         sleigh.position
           .copy(camPos)
           .addScaledVector(forward, 240)
@@ -207,6 +216,10 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
       orbit.pitch = 0;
       jumper.rotation.set(0, 0, 0);
       sleigh.visible = false;
+      fireworks.stop();
+    },
+    celebrate(seconds, onBurst) {
+      fireworks.start(seconds, onBurst);
     },
   };
 }

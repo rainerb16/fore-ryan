@@ -100,6 +100,21 @@ test("a great jump lands in a believable range", () => {
   assert.ok(d > 120 && d < 170, `${d} m`);
 });
 
+test("the Christmas line takes a timed take-off and a long glide", () => {
+  const best = (tap) => {
+    let far = 0;
+    for (let hold = 0; hold < 6; hold += 0.05) {
+      const j = R.simulate(tap, (j) => j.time - j.takeoffTime < hold);
+      if (!j.crashed) far = Math.max(far, j.distance);
+    }
+    return far;
+  };
+  assert.ok(best(0.02) > R.CHRISTMAS_LINE_M, "a perfect take-off can reach it");
+  assert.ok(best(0.2) > R.CHRISTMAS_LINE_M, "so can a good one");
+  assert.ok(best(null) < R.CHRISTMAS_LINE_M, "a late take-off never can");
+  assert.ok(R.simulate(0.02, () => false).distance < R.CHRISTMAS_LINE_M, "nor a perfect one without gliding");
+});
+
 test("the same inputs always give the same jump", () => {
   assert.equal(jump(0.05, 0.4).distance, jump(0.05, 0.4).distance);
 });
