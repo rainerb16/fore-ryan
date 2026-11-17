@@ -28,6 +28,25 @@ function webFonts(): Promise<unknown> {
   return Promise.race([load, new Promise((r) => setTimeout(r, 1500))]).catch(() => undefined);
 }
 
+/** A visit starts outside the shop; once in, the rest of the visit (this tab) stays inside. */
+const INSIDE_KEY = "arcade.inside";
+function insideAlready(): boolean {
+  // ?outside always starts in the street, for showing it off.
+  if (new URLSearchParams(window.location.search).has("outside")) return false;
+  try {
+    return window.sessionStorage.getItem(INSIDE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function rememberInside(): void {
+  try {
+    window.sessionStorage.setItem(INSIDE_KEY, "1");
+  } catch {
+    // Private mode or blocked storage: they'll just see the street again next time.
+  }
+}
+
 async function start3d(): Promise<ShowScores> {
   // Loaded on demand, so the fallback list never waits on Three.js.
   const [{ createArcade }, head, logo, guy] = await Promise.all([
@@ -44,8 +63,19 @@ async function start3d(): Promise<ShowScores> {
   const hintAction = $("hintAction");
   const fade = $("fade");
 
+  const startOutside = !insideAlready();
+  const enterWords = window.matchMedia("(hover: none)").matches ? "Tap to enter" : "Click to enter";
+  $("enterLabel").textContent = `${enterWords} the arcade`;
+  document.body.classList.toggle("outside", startOutside);
+
   const arcade = createArcade({
     canvas: $<HTMLCanvasElement>("arcade"),
+    startOutside,
+    enterWords,
+    onEntered() {
+      document.body.classList.remove("outside");
+      rememberInside();
+    },
     games,
     images: { head, logo, guy },
     onFocus(focus) {
@@ -71,6 +101,7 @@ async function start3d(): Promise<ShowScores> {
   $("prevBtn").addEventListener("click", press("ArrowLeft"));
   $("nextBtn").addEventListener("click", press("ArrowRight"));
   $("playBtn").addEventListener("click", press("Enter"));
+  $("enterBtn").addEventListener("click", () => arcade.enter());
 
   // Tabbing through the hidden list moves the camera along with it.
   $("cabinetList").addEventListener("focusin", (e) => {
