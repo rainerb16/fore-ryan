@@ -14,7 +14,7 @@
     "check": "npm run typecheck && npm run build && node --test test/*.test.mjs && node test/smoke.mjs"
   },
   "devDependencies": {
-    "@types/node": "^20.17.0",
+    "@types/node": "^24.19.2",
     "@types/three": "0.187.0",
     "esbuild": "^0.25.0",
     "jsdom": "^26.0.0",

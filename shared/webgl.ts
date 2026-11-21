@@ -2,10 +2,12 @@
 // for downloading Three.js.
 
 /**
- * The context the 3D pages ask for. Everything else is left at WebGL's
- * defaults, which are also what Three.js asks for.
+ * The context the 3D pages ask for. No antialiasing: the scene is drawn into
+ * the bloom composer's buffer first, which smooths its own edges (see
+ * createBloom), so the screen's would only cost memory. Everything else is left
+ * at WebGL's defaults, which are also what Three.js asks for.
  */
-export const CONTEXT = { antialias: true, powerPreference: "high-performance" } as const;
+export const CONTEXT = { antialias: false, powerPreference: "high-performance" } as const;
 
 /**
  * Whether WebGL 2, which Three.js needs, works here. Pass the canvas the page
@@ -18,4 +20,18 @@ export function hasWebGL(canvas: HTMLCanvasElement = document.createElement("can
   } catch {
     return false;
   }
+}
+
+/**
+ * `work`, unless the canvas's WebGL context is lost first, in which case it
+ * fails. Three's shader compile waits on the GPU, and on a lost context it
+ * would wait forever.
+ */
+export function unlessContextLost<T>(canvas: EventTarget, work: Promise<T>): Promise<T> {
+  let onLost = (): void => undefined;
+  const lost = new Promise<never>((_, reject) => {
+    onLost = () => reject(new Error("The WebGL context was lost"));
+    canvas.addEventListener("webglcontextlost", onLost, { once: true });
+  });
+  return Promise.race([work, lost]).finally(() => canvas.removeEventListener("webglcontextlost", onLost));
 }

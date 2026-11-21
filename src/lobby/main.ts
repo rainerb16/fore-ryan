@@ -2,7 +2,8 @@ import "./lobby.css";
 import { byNewest } from "../../shared/games";
 import { getLeaderboard, type LeaderboardEntry } from "../../shared/scores";
 import { hasWebGL } from "../../shared/webgl";
-import { isMuted, setMuted, startAudio } from "./audio";
+import { isMuted, listenForTaps, setMuted } from "./audio";
+import { webFonts } from "./fonts";
 import { renderList } from "./list";
 
 type ShowScores = (gameId: string, top: LeaderboardEntry[] | null) => void;
@@ -21,12 +22,10 @@ function loadImage(src: string): Promise<HTMLImageElement | null> {
   });
 }
 
-/** Canvas text only uses a web font once it has loaded. Don't wait forever. */
-function webFonts(): Promise<unknown> {
-  const faces = ["700 92px Oswald", "600 26px Poppins", "700 22px Poppins", "120px Monoton", "190px \"Mr Dafoe\""];
-  const load = Promise.all(faces.map((f) => document.fonts.load(f)));
-  return Promise.race([load, new Promise((r) => setTimeout(r, 1500))]).catch(() => undefined);
-}
+/** The faces the arcade's canvases paint with. */
+const FACES = ["700 92px Oswald", "600 26px Poppins", "700 22px Poppins", "120px Monoton", "190px \"Mr Dafoe\""];
+/** Long enough for the stylesheet and then the fonts on a slow phone; after that, fallback faces. */
+const FONTS_LIMIT_MS = 3000;
 
 /** A visit starts outside the shop; once in, the rest of the visit (this tab) stays inside. */
 const INSIDE_KEY = "arcade.inside";
@@ -52,9 +51,9 @@ async function start3d(): Promise<ShowScores> {
   const [{ createArcade }, head, logo, guy] = await Promise.all([
     import("./arcade"),
     loadImage("/assets/ryan/ryan-head-floating.png"),
-    loadImage("/assets/af/af-logo.png"),
-    loadImage("/assets/af/af-guy-thumbs-up.png"),
-    webFonts(),
+    loadImage("/assets/af/af-logo.webp"),
+    loadImage("/assets/af/af-guy-thumbs-up.webp"),
+    webFonts(document.getElementById("fonts") as HTMLLinkElement | null, document.fonts, FACES, FONTS_LIMIT_MS),
   ]);
 
   const title = $("focusTitle");
@@ -131,14 +130,19 @@ function setUpSound(): void {
     // Otherwise Enter or Space would press it again instead of reaching the arcade.
     muteBtn.blur();
   });
-  // Touch only counts as a gesture that may start audio when the finger lifts
-  // (iOS especially), so listen for the end of a touch and for clicks too.
-  for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"] as const) {
-    window.addEventListener(type, startAudio, { capture: true });
-  }
+  listenForTaps();
 }
 
 async function boot(): Promise<void> {
+  // Asked for now, alongside the 3D arcade loading, not after it.
+  const scores = games.map((game) => {
+    const top = getLeaderboard(game.id, 3)
+      .then((board) => board.top)
+      .catch(() => null);
+    void top.then((t) => setListScores.get(game.id)?.(t));
+    return { id: game.id, top };
+  });
+
   let showOnScreens: ShowScores | null = null;
   if (hasWebGL($<HTMLCanvasElement>("arcade"))) {
     try {
@@ -151,15 +155,8 @@ async function boot(): Promise<void> {
   }
   if (!showOnScreens) document.body.classList.add("no-webgl");
 
-  for (const game of games) {
-    getLeaderboard(game.id, 3)
-      .then((board) => board.top)
-      .catch(() => null)
-      .then((top) => {
-        setListScores.get(game.id)?.(top);
-        showOnScreens?.(game.id, top);
-      });
-  }
+  const show = showOnScreens;
+  if (show) for (const { id, top } of scores) void top.then((t) => show(id, t));
 }
 
 void boot();

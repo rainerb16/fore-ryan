@@ -37,6 +37,7 @@ On this machine the repo lives on a WSL path, so run npm inside WSL rather than 
 | `shared/scores.ts` | The scores adapter every game uses to start runs, post scores, and read standings |
 | `shared/names.ts` | Name cleaning, shared by browser and server (1–20 characters) |
 | `shared/storage.ts` | `localStorage` that never throws |
+| `shared/audio.ts` | The sound engine every page uses: starts on a tap, restarts after a phone pauses it, quiet when the page is hidden |
 | `shared/three.ts`, `shared/webgl.ts` | Renderer setup and the WebGL check for 3D pages |
 | `netlify/functions/` | The leaderboard API: token issue, submission, standings |
 | `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |
@@ -187,6 +188,13 @@ and the `leaderboard` view keeps each player's best run per game, in that game's
 RLS, policies, grants, functions, constraints); run it before changing the schema.
 
 To hide a run without deleting it, set `flagged = true` on it.
+
+### Checks on every pull request
+
+`.github/workflows/check.yml` runs `npm run check` (type check, build, tests, smoke test)
+on Node 24, as Netlify builds and runs the functions with, for every pull request and every push to `develop` and
+`main`. It needs no secrets. It isn't a required check yet: making it one means turning on
+branch protection for `develop` and `main` under **Settings → Branches**.
 
 ### Keeping the database awake
 

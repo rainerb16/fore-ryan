@@ -5,7 +5,8 @@
 
 import { CatmullRomCurve3, Fog, MathUtils, PerspectiveCamera, Raycaster, Scene, Vector2, Vector3, type Object3D } from "three";
 import type { GameEntry } from "../../shared/games";
-import { createView, isLowPower, prefersReducedMotion, runLoop } from "../../shared/three";
+import { runLoop } from "../../shared/loop";
+import { createView, isLowPower, prefersReducedMotion } from "../../shared/three";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
 import { decorateRoom } from "./festive";
 import { sprayGraffiti } from "./graffiti";
@@ -354,7 +355,29 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
   // --- frame loop -------------------------------------------------------------
 
   const lookAt = new Vector3();
-  runLoop((time, dt) => {
+  /** When the player last tapped or pressed a key: a kick, a swipe, a spray of graffiti. */
+  let touchedAt = -Infinity;
+  for (const type of ["pointerdown", "keydown"] as const) {
+    window.addEventListener(
+      type,
+      () => {
+        touchedAt = performance.now();
+        // Drawing stops once a game starts loading; if that load was stopped
+        // or abandoned, the page is still here, so draw it again.
+        if (!launching) loop.start();
+      },
+      { capture: true, passive: true },
+    );
+  }
+  // Moving quickly: walking in, gliding between cabinets, zooming into one, or
+  // in the few seconds after a tap (long enough for a broken machine's secret
+  // show). Otherwise only the slow sway and flicker are moving.
+  const busy = (): boolean =>
+    intro?.phase === "entering" ||
+    launching !== null ||
+    Math.abs(railX - xOf(playable[focus])) > 0.01 ||
+    performance.now() - touchedAt < 5000;
+  const loop = runLoop((time, dt) => {
     if (!compiled) return;
     room.update(time);
     cabinets.forEach((c, i) => {
@@ -411,6 +434,8 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
       if (t === 1) {
         window.location.assign(launching.game.path);
         launching = null;
+        // Nothing to show while the game loads: stop drawing (Back starts it again).
+        loop.stop();
       }
     } else {
       // Glide along the rail, with a gentle idle sway.
@@ -424,14 +449,16 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
       room.spot.target.position.set(railX, 0.8, ROW_Z);
     }
     look.render();
-  });
+  }, lowPower ? { idleFps: 30, busy } : {});
 
   setFocus(0, true);
 
   // Coming back via the browser's Back button restores this page from cache,
   // mid-zoom. Start again from the rail.
   window.addEventListener("pageshow", (e) => {
-    if (e.persisted) launching = null;
+    if (!e.persisted) return;
+    launching = null;
+    loop.start();
   });
 
   return {

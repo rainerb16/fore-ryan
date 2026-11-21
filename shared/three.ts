@@ -2,8 +2,10 @@
 
 import {
   ACESFilmicToneMapping,
+  HalfFloatType,
   PCFShadowMap,
   Vector2,
+  WebGLRenderTarget,
   WebGLRenderer,
   type Camera,
   type PerspectiveCamera,
@@ -54,19 +56,6 @@ export function createView(
   return renderer;
 }
 
-/** Calls `frame` every animation frame with seconds elapsed and the frame delta. */
-export function runLoop(frame: (time: number, dt: number) => void): void {
-  let last = performance.now();
-  const tick = (now: number): void => {
-    // Clamp, so a tab returning from the background does not jump the scene.
-    const dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-    frame(now / 1000, dt);
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}
-
 export interface Bloom {
   render(): void;
   resize(width: number, height: number): void;
@@ -88,7 +77,10 @@ export function createBloom(
   camera: Camera,
   opts: { strength: number; radius: number; threshold: number; lowPower: boolean },
 ): Bloom {
-  const composer = new EffectComposer(renderer);
+  // The scene is drawn here, not on the screen, so this is where edges are
+  // smoothed. Phones skip it: the cost is real and their pixels are small.
+  const target = new WebGLRenderTarget(1, 1, { type: HalfFloatType, samples: opts.lowPower ? 0 : 4 });
+  const composer = new EffectComposer(renderer, target);
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new Vector2(1, 1), opts.strength, opts.radius, opts.threshold);
   composer.addPass(bloom);
@@ -106,10 +98,12 @@ export function createBloom(
       await done;
     },
     resize(width, height) {
-      composer.setPixelRatio(renderer.getPixelRatio());
+      const pixelRatio = renderer.getPixelRatio();
+      composer.setPixelRatio(pixelRatio);
       composer.setSize(width, height);
-      // Bloom is blurry by nature; phones can compute it at half size.
-      if (opts.lowPower) bloom.resolution.set(width / 2, height / 2);
+      // Bloom is blurry by nature; phones can compute it at half size. The pass
+      // sizes itself from setSize alone, so this has to come after the composer's.
+      if (opts.lowPower) bloom.setSize((width * pixelRatio) / 2, (height * pixelRatio) / 2);
     },
   };
 }

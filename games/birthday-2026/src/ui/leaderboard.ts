@@ -22,6 +22,8 @@ const BOARD_LIMIT = 25;
 /** The run waiting to be posted. Cleared once it is in. */
 let pending: { summary: RunSummary; token: string | null } | null = null;
 let posting = false;
+/** Counts runs armed, so a slow token for an earlier run never arms the form for it. */
+let armed = 0;
 
 function deadlineNote(closesAt: string | null, closed: boolean): string {
   if (!closesAt) return "";
@@ -33,10 +35,19 @@ function deadlineNote(closesAt: string | null, closed: boolean): string {
 
 // --- submission -------------------------------------------------------------
 
-/** Arms the form on the run screen when a contest run ends. */
-export function armSubmission(summary: RunSummary, token: string | null): void {
-  pending = { summary, token };
+/**
+ * Arms the form on the run screen when a contest run ends. `runToken` is the
+ * token asked for as the run began, which may still be on its way.
+ */
+export async function armSubmission(summary: RunSummary, runToken: Promise<string | null> | null): Promise<void> {
+  const turn = ++armed;
+  pending = null;
   posting = false;
+  submitForm.hidden = true;
+  submitStatus.textContent = "Checking in with the leaderboard…";
+  const token = await runToken;
+  if (turn !== armed) return; // another run has ended since
+  pending = { summary, token };
 
   nameInput.value = savedName();
   submitForm.hidden = false;

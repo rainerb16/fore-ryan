@@ -1,9 +1,10 @@
 import "./styles.css";
-import { startRun } from "../../../shared/scores";
+import { runLoop } from "../../../shared/loop";
+import { runTokens } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
-import { hasWebGL } from "../../../shared/webgl";
+import { hasWebGL, unlessContextLost } from "../../../shared/webgl";
 import { CHRISTMAS_LINE_M, distanceAt, GAME_ID, newJump, PHYSICS, step, timeScale, type Jump } from "../rules";
-import { hush, initAudio, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
+import { hush, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
 import { armPost, loadPodium } from "./board";
 import { buildDancer } from "./dancer";
 import { buildDisco } from "./disco";
@@ -50,6 +51,9 @@ function call(text: string, bad = false, ms = 1400): void {
 }
 const hideCallout = (): void => callout.classList.remove("on");
 
+/** Disabled and saying "Loading…" in the page itself, until the jump has loaded. */
+const startBtn = $<HTMLButtonElement>("startBtn");
+
 const muteBtn = $<HTMLButtonElement>("muteBtn");
 function showMute(): void {
   muteBtn.textContent = isMuted() ? "🔇" : "🔊";
@@ -57,7 +61,6 @@ function showMute(): void {
 }
 muteBtn.addEventListener("click", () => {
   setMuted(!isMuted());
-  if (!isMuted()) initAudio();
   showMute();
   // Otherwise Space would press this button again instead of jumping.
   muteBtn.blur();
@@ -88,7 +91,11 @@ async function boot(): Promise<void> {
   buildDancer($("dancer"));
   buildDisco($("disco"));
   const [{ createJumpView, SLEIGH_CROSSING }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
-  const view = createJumpView($<HTMLCanvasElement>("scene"), head);
+  const canvas = $<HTMLCanvasElement>("scene");
+  const view = createJumpView(canvas, head);
+  // The scene's shaders compile in the background first: drawing straight away
+  // would compile them one by one inside that frame, freezing the page.
+  await unlessContextLost(canvas, view.compile());
   attachInput();
 
   let jump: Jump = newJump();
@@ -98,12 +105,12 @@ async function boot(): Promise<void> {
   let lastPhase = jump.phase;
   let acc = 0;
   /** This jump's run token, asked for as it begins so the server has its own clock on it. */
+  const tokens = runTokens(GAME_ID);
   let token: Promise<string | null> = Promise.resolve(null);
   /** Whether this jump cleared the Christmas line. */
   let christmas = false;
 
   function start(): void {
-    initAudio();
     hush();
     christmas = false;
     jump = newJump();
@@ -112,7 +119,7 @@ async function boot(): Promise<void> {
     lastPhase = jump.phase;
     acc = 0;
     resetInput();
-    token = startRun(GAME_ID);
+    token = tokens.next();
     startScreen.hidden = true;
     resultScreen.hidden = true;
     podiumScreen.hidden = true;
@@ -191,16 +198,15 @@ async function boot(): Promise<void> {
     if (to === "done") finish();
   }
 
-  $("startBtn").addEventListener("click", start);
+  // The shadow and bloom passes only compile when drawn, so draw one frame
+  // now, behind the start screen, before Start can begin a jump.
+  view.render(jump, 0, prev, 1, readLook());
+
   $("againBtn").addEventListener("click", start);
   $("podiumAgainBtn").addEventListener("click", start);
   showBest();
 
-  let last = performance.now();
-  const frame = (now: number): void => {
-    const dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-
+  const frame = (_time: number, dt: number): void => {
     if (playing) {
       // Fixed steps keep every device's jump identical; slow motion just
       // feeds the simulation less time per real second.
@@ -228,9 +234,22 @@ async function boot(): Promise<void> {
 
     if (!playing) setLayers(0, 0);
     view.render(jump, dt, prev, playing ? acc / STEP : 1, readLook());
-    requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+  // Behind the menus only snow falls, unless fireworks are going off.
+  runLoop(frame, view.lowPower ? { idleFps: 30, busy: () => playing || view.celebrating() } : {});
+
+  // Last, so nothing above can fail once Start works (and a failure's retry
+  // never shares the button with a working Start).
+  startBtn.addEventListener("click", start);
+  startBtn.disabled = false;
+  startBtn.textContent = "Tap to start";
 }
 
-void boot();
+void boot().catch((err: unknown) => {
+  // A failed download or a GPU that can't run the scene: offer another go
+  // rather than leave Start doing nothing.
+  console.error("The ski jump failed to load.", err);
+  startBtn.textContent = "Couldn't load. Tap to try again";
+  startBtn.disabled = false;
+  startBtn.addEventListener("click", () => window.location.reload());
+});

@@ -7,6 +7,13 @@ export function env(name: string): string {
   return value;
 }
 
+/**
+ * How long each database call may take. A submission makes up to four in a
+ * row, and Netlify stops a function after 10s, so a slow database fails cleanly
+ * well inside that, and the player's device keeps the run.
+ */
+export const DB_TIMEOUT_MS = 2000;
+
 /** How long a run token stays valid. A run left open past this cannot be submitted. */
 export const TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -16,7 +23,11 @@ export const WALL_CLOCK_SLACK = 0.85;
 /** Submissions per email hash per hour. */
 export const RATE_LIMIT_PER_HOUR = 20;
 
-/** Run tokens per IP per hour. Far above anything reachable by playing. */
-export const TOKENS_PER_HOUR = 60;
+/**
+ * Run tokens per IP per hour. The games reuse a token until a run is posted
+ * with it, so this is about posted runs: an office of 15 on one connection,
+ * each posting their 20 an hour.
+ */
+export const TOKENS_PER_HOUR = 300;
 
 export const LEADERBOARD_LIMIT = 25;

@@ -1,56 +1,19 @@
 import { muteBtn } from "../ui/dom";
-import { store } from "../../../../shared/storage";
+import { createAudio } from "../../../../shared/audio";
 
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
-
-let audioCtx: AudioContext | null = null;
-let muted = store.get("ryanbday.muted", "0") === "1";
+const audio = createAudio({ muteKey: "ryanbday.muted", level: 1, playOnSilent: true });
+const { tone } = audio;
+audio.listen();
 
 const updateMuteBtn = (): void => {
-  muteBtn.textContent = muted ? "🔇" : "🔊";
+  muteBtn.textContent = audio.isMuted() ? "🔇" : "🔊";
 };
 updateMuteBtn();
 
 muteBtn.addEventListener("click", () => {
-  muted = !muted;
-  store.set("ryanbday.muted", muted ? "1" : "0");
+  audio.setMuted(!audio.isMuted());
   updateMuteBtn();
-  if (!muted) initAudio();
 });
-
-/** Created on the first tap of Tee Off, so it never trips autoplay blocking. */
-export function initAudio(): void {
-  if (audioCtx) {
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    return;
-  }
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  try {
-    audioCtx = new AC();
-  } catch (e) {
-    audioCtx = null;
-  }
-}
-
-function tone(freq: number, dur: number, type: OscillatorType = "sine", when = 0, vol = 0.18): void {
-  if (muted || !audioCtx) return;
-  const t0 = audioCtx.currentTime + when;
-  const osc = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(gain).connect(audioCtx.destination);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
 
 // "Happy Birthday to You" — [frequency, beats]. Public domain since 2016.
 const BIRTHDAY_MELODY: Array<[number, number]> = [

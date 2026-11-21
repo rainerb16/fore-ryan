@@ -40,15 +40,29 @@ const { runTotal } = await bundle("test/shared-entry.ts", "shared", "neutral");
 let tokens;
 let runs;
 let board;
+/** One-off failures to inject, by request: "insert" or "consume" → an HTTP status, or "timeout". */
+let faults;
+/** Every request the functions made, to check how they made them. */
+let requests;
 
 function installFakeDatabase() {
   tokens = new Map();
   runs = [];
   board = [];
+  faults = {};
+  requests = [];
 
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(process.env.SUPABASE_URL + "/rest/v1/", "");
     const method = init.method || "GET";
+    requests.push({ method, path, signal: init.signal });
+    const kind = path === "runs" && method === "POST" ? "insert" : path.startsWith("run_tokens?") && method === "PATCH" ? "consume" : null;
+    const fault = kind && faults[kind];
+    if (fault) {
+      delete faults[kind];
+      if (fault === "timeout") throw new DOMException("The operation timed out.", "TimeoutError");
+      return new Response(JSON.stringify({ message: "upstream trouble" }), { status: fault });
+    }
     const ok = (body, headers = {}) =>
       new Response(JSON.stringify(body), { status: 200, headers });
     const idIn = (p) => decodeURIComponent(p.match(/token=eq\.([^&]+)/)[1]);
@@ -125,7 +139,12 @@ function installFakeDatabase() {
     }
 
     if (path === "runs" && method === "POST") {
-      runs.push(Object.assign(JSON.parse(init.body), { created_at: Date.now() }));
+      const row = JSON.parse(init.body);
+      // runs.run_token is unique, and PostgREST reports the violation as a 409.
+      if (runs.some((r) => r.run_token === row.run_token)) {
+        return new Response(JSON.stringify({ code: "23505", message: "duplicate key value" }), { status: 409 });
+      }
+      runs.push(Object.assign(row, { created_at: Date.now() }));
       return new Response("[]", { status: 201 });
     }
 
@@ -210,12 +229,13 @@ test("run-start refuses a game it does not know", async () => {
 });
 
 test("run-start caps how many tokens one address can mint", async () => {
-  for (let i = 0; i < 60; i++) {
+  // An office on one wifi: 15 people, each posting the 20 runs an hour they may.
+  for (let i = 0; i < 300; i++) {
     assert.equal((await startRunReq()).status, 200, `token ${i + 1} should be issued`);
   }
   const blocked = await startRunReq();
   assert.equal(blocked.status, 429);
-  assert.equal(tokens.size, 60, "the blocked request must not create a row");
+  assert.equal(tokens.size, 300, "the blocked request must not create a row");
 });
 
 test("the contest deadline closes both endpoints", async () => {
@@ -302,6 +322,48 @@ test("rejects a replay of an already-submitted token", async () => {
   const again = await post(body);
   assert.equal(again.status, 409);
   assert.equal(runs.length, 1, "the replay must not create a second row");
+});
+
+test("a run whose save fails can still be posted on a retry", async () => {
+  const body = goodSubmission();
+  faults.insert = 503;
+  assert.equal((await post(body)).status, 500);
+  assert.equal(tokens.get(body.token).used_at, null, "the token is not spent on a failed save");
+
+  assert.equal((await post(body)).status, 200);
+  assert.equal(runs.length, 1);
+});
+
+test("a run saved by a submission racing this one is refused as a replay", async () => {
+  const body = goodSubmission();
+  // The other submission has saved its row but not yet marked the token used.
+  runs.push({ run_token: body.token, player_id: "someone-else", created_at: Date.now() });
+  const res = await post(body);
+  assert.equal(res.status, 409);
+  assert.equal(runs.length, 1, "the replay must not create a second row");
+});
+
+test("a run that was saved counts, even if marking its token used then fails", async () => {
+  faults.consume = 503;
+  const res = await post(goodSubmission());
+  assert.equal(res.status, 200);
+  assert.equal(runs.length, 1);
+});
+
+test("stats of the wrong shape are refused, not a crash", async () => {
+  for (const details of [{ levels: "abc" }, { levels: [null] }, { levels: [{ level: "x" }] }]) {
+    const res = await post(goodSubmission({ details }));
+    assert.equal(res.status, 422, JSON.stringify(details));
+  }
+  assert.equal(runs.length, 0);
+});
+
+test("every database call has a time limit, and running out is a clean failure", async () => {
+  faults.insert = "timeout";
+  const res = await post(goodSubmission());
+  assert.equal(res.status, 500);
+  assert.ok(requests.length > 0);
+  for (const r of requests) assert.ok(r.signal instanceof AbortSignal, `${r.method} ${r.path} has no time limit`);
 });
 
 test("rejects an unknown token", async () => {
@@ -526,4 +588,18 @@ test("an impossible jump is kept for review, flagged with the reason", async () 
   assert.equal(res.status, 200);
   assert.equal(runs[0].flagged, true);
   assert.match(runs[0].details.flag_reasons.join(" "), /late take-off/);
+});
+
+test("a golf run no real player could make is kept, flagged, with its reasons", async () => {
+  const levels = [];
+  for (let n = 1; n <= 30; n++) {
+    const holes = n <= 5 ? [5, 6, 7, 8, 9][n - 1] : Math.min(12, 9 + Math.ceil((n - 5) / 2));
+    levels.push({ level: n, holes, shots: holes, durationMs: holes * 320 + 400, livesLost: 0 });
+  }
+  const details = summaryOf(levels);
+  const res = await post(goodSubmission({ token: tokenIssuedAgo(60 * 60 * 1000), details }));
+  assert.equal(res.status, 200, "accepted, so a cheat learns nothing from the reply");
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].flagged, true);
+  assert.ok(runs[0].details.flag_reasons.length > 0);
 });
