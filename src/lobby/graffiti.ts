@@ -335,17 +335,18 @@ const SPRAY_FOR = 1.8;
 const RATTLE_FOR = 0.45;
 
 export function sprayGraffiti(scene: Scene, o: GraffitiOptions, onSpray: (seconds: number) => void): Graffiti {
-  const make = (): [HTMLCanvasElement, CanvasRenderingContext2D | null] => {
+  const make = (readBack = false): [HTMLCanvasElement, CanvasRenderingContext2D | null] => {
     const c = document.createElement("canvas");
     c.width = CW;
     c.height = CH;
-    return [c, c.getContext("2d")];
+    // A canvas that is read back stays in memory rather than on the GPU, so the read is cheap.
+    return [c, c.getContext("2d", { willReadFrequently: readBack })];
   };
   // The piece in layers: what's always there, the season's outfit, and the
   // speech bubble on top. The canvas shown is built from them.
   const [canvas, ctx] = make();
   const [base, baseCtx] = make();
-  const [outfit, outfitCtx] = make();
+  const [outfit, outfitCtx] = make(true); // strokes() reads it to plan the spray
   const [top, topCtx] = make();
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;

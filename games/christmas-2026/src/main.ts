@@ -5,6 +5,8 @@ import { hasWebGL } from "../../../shared/webgl";
 import { CHRISTMAS_LINE_M, distanceAt, GAME_ID, newJump, PHYSICS, step, timeScale, type Jump } from "../rules";
 import { hush, initAudio, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
 import { armPost, loadPodium } from "./board";
+import { buildDancer } from "./dancer";
+import { buildDisco } from "./disco";
 import { attachInput, readInput, readLook, resetInput } from "./input";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -76,13 +78,15 @@ async function boot(): Promise<void> {
   // The podium needs no 3D, so it is there even where the jump cannot run.
   for (const id of ["startBoardBtn", "resultBoardBtn", "noWebglBoardBtn"]) $(id).addEventListener("click", () => openPodium());
 
-  if (!hasWebGL()) {
+  if (!hasWebGL($<HTMLCanvasElement>("scene"))) {
     startScreen.hidden = true;
     $("noWebgl").hidden = false;
     $("podiumAgainBtn").hidden = true;
     return;
   }
 
+  buildDancer($("dancer"));
+  buildDisco($("disco"));
   const [{ createJumpView, SLEIGH_CROSSING }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
   const view = createJumpView($<HTMLCanvasElement>("scene"), head);
   attachInput();

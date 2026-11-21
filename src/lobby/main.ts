@@ -112,6 +112,8 @@ async function start3d(): Promise<ShowScores> {
   // Back from a game restores this page from cache with the fade still on.
   window.addEventListener("pageshow", () => fade.classList.remove("on"));
 
+  await arcade.ready;
+
   return (id, top) => arcade.setScores(id, top ? { state: "ready", top } : { state: "error" });
 }
 
@@ -138,7 +140,7 @@ function setUpSound(): void {
 
 async function boot(): Promise<void> {
   let showOnScreens: ShowScores | null = null;
-  if (hasWebGL()) {
+  if (hasWebGL($<HTMLCanvasElement>("arcade"))) {
     try {
       showOnScreens = await start3d();
       document.body.classList.add("webgl");
