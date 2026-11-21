@@ -56,19 +56,6 @@ export function createView(
   return renderer;
 }
 
-/** Calls `frame` every animation frame with seconds elapsed and the frame delta. */
-export function runLoop(frame: (time: number, dt: number) => void): void {
-  let last = performance.now();
-  const tick = (now: number): void => {
-    // Clamp, so a tab returning from the background does not jump the scene.
-    const dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-    frame(now / 1000, dt);
-    requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}
-
 export interface Bloom {
   render(): void;
   resize(width: number, height: number): void;
