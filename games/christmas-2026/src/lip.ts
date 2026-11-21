@@ -24,7 +24,7 @@ import { CHRISTMAS_LINE_M, hillY, INRUN, landingAngle, xAtDistance } from "../ru
 import { glowing } from "./glow";
 import { canvasTexture } from "./world";
 
-const LOGO_SRC = "/assets/af/af-logo.png";
+const LOGO_SRC = "/assets/af/af-logo.webp";
 /** Brand navy, from the Action Furnace brand guide. */
 const NAVY = "#081644";
 const FONT = `600 76px "Poppins", "Segoe UI", system-ui, sans-serif`;
