@@ -229,12 +229,13 @@ test("run-start refuses a game it does not know", async () => {
 });
 
 test("run-start caps how many tokens one address can mint", async () => {
-  for (let i = 0; i < 60; i++) {
+  // An office on one wifi: 15 people, each posting the 20 runs an hour they may.
+  for (let i = 0; i < 300; i++) {
     assert.equal((await startRunReq()).status, 200, `token ${i + 1} should be issued`);
   }
   const blocked = await startRunReq();
   assert.equal(blocked.status, 429);
-  assert.equal(tokens.size, 60, "the blocked request must not create a row");
+  assert.equal(tokens.size, 300, "the blocked request must not create a row");
 });
 
 test("the contest deadline closes both endpoints", async () => {

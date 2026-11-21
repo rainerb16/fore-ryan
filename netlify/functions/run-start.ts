@@ -29,7 +29,8 @@ export default async (req: Request): Promise<Response> => {
     const ipHash = hashIp(clientIp(req));
 
     // This is the only endpoint that needs no credentials and writes a row, so
-    // it is the one worth capping. A person cannot reach this by playing.
+    // it is the one worth capping. The games reuse a token until a run is
+    // posted with it, so this counts posted runs and page loads, not every run.
     if (ipHash && (await recentTokenCount(ipHash)) >= TOKENS_PER_HOUR) {
       return fail(429, "Too many runs started — try again shortly");
     }

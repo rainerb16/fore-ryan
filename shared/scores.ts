@@ -66,10 +66,15 @@ export const rememberName = (name: string): void => store.set(NAME_KEY, name);
 /** Network failure or a server-side fault: worth falling back for. */
 class Unavailable extends Error {}
 
+/** How long a request may take before the run is kept on this device instead. */
+const REQUEST_TIMEOUT_MS = 8000;
+
 async function call(path: string, init?: RequestInit): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(path, init);
+    // Older iPhones (iOS 15) have no AbortSignal.timeout; there a request just has no limit.
+    const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(REQUEST_TIMEOUT_MS) : undefined;
+    res = await fetch(path, { ...init, signal });
   } catch (err) {
     throw new Unavailable(String(err));
   }
@@ -167,6 +172,51 @@ export async function startRun(gameId: string): Promise<string | null> {
   }
 }
 
+/**
+ * Tokens for one game's runs. A run nobody posts (a wipeout, a quick retry)
+ * hands its token to the next, so playing never uses up the server's per-address
+ * cap. A token is only reused while well inside the server's 6-hour limit; one
+ * that is an older start only loosens the server's wall-clock check, never tightens it.
+ */
+export interface RunTokens {
+  next(): Promise<string | null>;
+}
+
+const REUSE_FOR_MS = 5 * 60 * 60 * 1000;
+
+/**
+ * Tokens a post was sent with. Marked as it is sent, not on the reply: a post
+ * still on its way, or one that timed out here but was saved on the server,
+ * has used its token all the same.
+ */
+const spent = new Set<string>();
+
+export function runTokens(gameId: string): RunTokens {
+  let current: Promise<string | null> | null = null;
+  /** What `current` resolved to; undefined while it is still on its way. */
+  let issued: string | null | undefined;
+  let askedAt = 0;
+
+  const reusable = (): boolean =>
+    current !== null &&
+    Date.now() - askedAt <= REUSE_FOR_MS &&
+    (issued === undefined || (issued !== null && !issued.startsWith(LOCAL_TOKEN) && !spent.has(issued)));
+
+  return {
+    next() {
+      if (current && reusable()) return current;
+      askedAt = Date.now();
+      issued = undefined;
+      const request = startRun(gameId);
+      current = request;
+      void request.then((token) => {
+        if (current === request) issued = token;
+      });
+      return request;
+    },
+  };
+}
+
 export async function submitRun(gameId: string, token: string, run: RunResult): Promise<SubmitResult> {
   const displayName = cleanName(run.displayName);
   if (!displayName) return { ok: false, error: "Enter your name first" };
@@ -180,6 +230,7 @@ export async function submitRun(gameId: string, token: string, run: RunResult): 
 
   if (token.startsWith(LOCAL_TOKEN)) return keepLocally();
 
+  spent.add(token);
   try {
     const res = await call("/api/submit-run", {
       method: "POST",

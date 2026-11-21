@@ -6,7 +6,7 @@ import { bankLevel, runSummary, startRun } from "../game/progression";
 import { game } from "../game/state";
 import { store } from "../../../../shared/storage";
 import { burstConfetti, reset } from "../game/world";
-import { startRun as requestRunToken } from "../../../../shared/scores";
+import { runTokens } from "../../../../shared/scores";
 import { applyTheme } from "../render/theme";
 import { hideBanner, showBanner } from "./banner";
 import {
@@ -35,6 +35,8 @@ function hideOverlays(): void {
   boardScreen.hidden = true;
 }
 
+const tokens = runTokens(GAME_ID);
+
 export function startGame(mode: GameMode): void {
   hideOverlays();
   hideBanner();
@@ -46,10 +48,7 @@ export function startGame(mode: GameMode): void {
   if (mode === MODE.CONTEST) {
     showBanner("Level 1", game.cfg.name);
     // Asked for as play begins, so the server has its own clock on the run.
-    game.runToken = null;
-    void requestRunToken(GAME_ID).then((token) => {
-      game.runToken = token;
-    });
+    game.runToken = tokens.next();
   }
 }
 
@@ -173,7 +172,7 @@ export function endRun(): void {
 
   renderScorecard(summary);
 
-  armSubmission(summary, game.runToken);
+  void armSubmission(summary, game.runToken);
 
   setTimeout(() => {
     if (game.state === STATE.LOSE) runScreen.hidden = false;

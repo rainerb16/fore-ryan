@@ -23,7 +23,11 @@ export const WALL_CLOCK_SLACK = 0.85;
 /** Submissions per email hash per hour. */
 export const RATE_LIMIT_PER_HOUR = 20;
 
-/** Run tokens per IP per hour. Far above anything reachable by playing. */
-export const TOKENS_PER_HOUR = 60;
+/**
+ * Run tokens per IP per hour. The games reuse a token until a run is posted
+ * with it, so this is about posted runs: an office of 15 on one connection,
+ * each posting their 20 an hour.
+ */
+export const TOKENS_PER_HOUR = 300;
 
 export const LEADERBOARD_LIMIT = 25;
