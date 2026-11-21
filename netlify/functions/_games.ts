@@ -3,7 +3,7 @@
 // A game with no entry here cannot start or post runs.
 
 import { gameById, type GameEntry } from "../../shared/games";
-import { validateRun } from "../../games/birthday-2026/rules/scoring";
+import { implausible, validateRun } from "../../games/birthday-2026/rules/scoring";
 import type { RunSummary } from "../../games/birthday-2026/rules/types";
 import { judgeJump, type JumpDetails } from "../../games/christmas-2026/rules";
 import type { RunColumns } from "./_db";
@@ -31,18 +31,22 @@ const RULES: Record<string, Omit<ServerGame, "entry">> = {
       const summary = details as RunSummary;
       const check = validateRun(summary);
       if (!check.ok) return { ok: false, reasons: check.reasons };
+      // Adds up, but no real player plays like this: kept, flagged, off the board.
+      const doubts = implausible(summary);
       return {
         ok: true,
         // The server's own number, never the client's claim.
         points: check.computedPoints,
         durationMs: Math.round(summary.durationMs),
-        flagged: false,
+        flagged: doubts.length > 0,
         columns: {
           level_reached: summary.levelReached,
           levels_cleared: summary.levelsCleared,
           shots_fired: summary.shotsFired,
           holes_sunk: summary.holesSunk,
           levels: summary.levels,
+          // Why it was flagged, for whoever reviews it, as the ski jump keeps.
+          ...(doubts.length > 0 ? { details: { flag_reasons: doubts } } : {}),
         },
       };
     },

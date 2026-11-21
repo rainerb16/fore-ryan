@@ -18,7 +18,7 @@ await build({
   platform: "neutral",
   logLevel: "warning",
 });
-const { SCORING, levelConfig, scoreLevel, runTotal, validateRun, AUTHORED_LEVELS } = await import(
+const { SCORING, levelConfig, scoreLevel, runTotal, validateRun, implausible, AUTHORED_LEVELS } = await import(
   `file://${outfile}`
 );
 
@@ -208,4 +208,116 @@ test("rejects an empty run", () => {
   const res = validateRun(summaryOf([clearedL1], { levels: [] }));
   assert.ok(!res.ok);
   assert.match(res.reasons.join(" "), /no levels recorded/);
+});
+
+// --- plausibility ---------------------------------------------------------------
+// Runs that add up but no real player makes are kept, flagged, off the board.
+// The honest shapes below are modelled on the live board's top ten (Nov 2026).
+
+/**
+ * A run clearing `cleared` levels and dying `partial` holes into the next, at
+ * `secPerHole` and `shotsPerHole`, with lives lost early on.
+ */
+function runOf(cleared, { secPerHole, shotsPerHole, partial = 2 }) {
+  const levels = [];
+  for (let n = 1; n <= cleared + 1; n++) {
+    const holes = n <= cleared ? levelConfig(n).holesToClear : partial;
+    levels.push({
+      level: n,
+      holes,
+      shots: Math.ceil(holes * shotsPerHole),
+      durationMs: Math.round(holes * secPerHole * 1000) + 1000,
+      livesLost: n === 2 || n === 4 || n === 6 || n === 8 || n === cleared + 1 ? 1 : 0,
+    });
+  }
+  return summaryOf(levels);
+}
+
+test("the board's best real run (level 13 in 4m38s) is not flagged", () => {
+  const run = runOf(12, { secPerHole: 2.3, shotsPerHole: 3 });
+  assert.ok(validateRun(run).ok, validateRun(run).reasons.join("; "));
+  assert.deepEqual(implausible(run), []);
+});
+
+test("a fast real run (6 levels in 83s) is not flagged", () => {
+  const run = runOf(6, { secPerHole: 1.6, shotsPerHole: 2.5 });
+  assert.ok(validateRun(run).ok);
+  assert.deepEqual(implausible(run), []);
+});
+
+test("a quick death on the first level is not flagged", () => {
+  assert.deepEqual(implausible(summaryOf([{ level: 1, holes: 1, shots: 1, durationMs: 900, livesLost: 5 }])), []);
+});
+
+test("50 flawless levels at the fastest the rules allow is flagged", () => {
+  const levels = [];
+  for (let n = 1; n <= 50; n++) {
+    const holes = levelConfig(n).holesToClear;
+    levels.push({ level: n, holes, shots: holes, durationMs: holes * 320 + 400, livesLost: 0 });
+  }
+  const run = summaryOf(levels);
+  assert.ok(validateRun(run).ok, "it adds up, which is the problem");
+  assert.ok(implausible(run).length >= 3, implausible(run).join("; "));
+});
+
+test("reaching past level 20 is flagged", () => {
+  const run = runOf(20, { secPerHole: 2.3, shotsPerHole: 3 });
+  assert.match(implausible(run).join("; "), /level 21/);
+});
+
+test("clearing a level at under 0.4s a hole is flagged", () => {
+  // Level 5: 9 holes in 3.42s. The rules allow it (the fire rate alone would
+  // allow 3.28s); with 3 holes moving and 0.6s respawns, no one sinks them that fast.
+  const run = runOf(6, { secPerHole: 2, shotsPerHole: 3 });
+  run.levels[4] = { ...run.levels[4], durationMs: run.levels[4].holes * 380, shots: run.levels[4].holes };
+  Object.assign(run, summaryOf(run.levels));
+  assert.ok(validateRun(run).ok, validateRun(run).reasons.join("; "));
+  assert.match(implausible(run).join("; "), /level 5: cleared too fast/);
+});
+
+test("one blistering level in an otherwise normal run is not flagged", () => {
+  // Level 3 in 3.15s: near-perfect, but within reach with 3 holes on screen.
+  const run = runOf(6, { secPerHole: 2, shotsPerHole: 3 });
+  run.levels[2] = { ...run.levels[2], durationMs: run.levels[2].holes * 450, shots: run.levels[2].holes + 1 };
+  Object.assign(run, summaryOf(run.levels));
+  assert.ok(validateRun(run).ok);
+  assert.deepEqual(implausible(run), []);
+});
+
+test("a strong, accurate player (0.8s a hole, 85% of shots) is not flagged", () => {
+  const run = runOf(10, { secPerHole: 0.8, shotsPerHole: 1 / 0.85 });
+  assert.ok(validateRun(run).ok, validateRun(run).reasons.join("; "));
+  assert.deepEqual(implausible(run), []);
+});
+
+test("a whole run averaging under 0.6s a hole is flagged", () => {
+  // Every level on its own is within reach; all of them in a row, about 0.52s a hole, are not.
+  const run = runOf(8, { secPerHole: 0.4, shotsPerHole: 1.3 });
+  assert.ok(validateRun(run).ok, validateRun(run).reasons.join("; "));
+  assert.match(implausible(run).join("; "), /averaged/);
+});
+
+test("a claimed level that disagrees with the levels played is flagged", () => {
+  // 30 levels played at a believable pace, but claiming to have reached level 13.
+  const run = runOf(29, { secPerHole: 2, shotsPerHole: 3 });
+  run.levelReached = 13;
+  assert.ok(validateRun(run).ok, "it adds up, so only the flag can catch it");
+  const reasons = implausible(run).join("; ");
+  assert.match(reasons, /level 30/);
+  assert.match(reasons, /claims level 13/);
+});
+
+test("sinking 95% of shots across 37 holes is flagged", () => {
+  // One shot a hole, plus two misses: 37 holes in 39 shots.
+  const run = runOf(5, { secPerHole: 2, shotsPerHole: 1 });
+  run.levels[0] = { ...run.levels[0], shots: run.levels[0].shots + 2 };
+  Object.assign(run, summaryOf(run.levels));
+  assert.ok(run.holesSunk >= 30 && run.holesSunk / run.shotsFired >= 0.94);
+  assert.ok(validateRun(run).ok);
+  assert.match(implausible(run).join("; "), /accuracy 95%/);
+});
+
+test("a short run can be accurate without being flagged", () => {
+  // Five holes in five shots happens; it takes 20 holes for it to mean anything.
+  assert.deepEqual(implausible(summaryOf([{ ...clearedL1, shots: 5 }])), []);
 });

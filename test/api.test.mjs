@@ -589,3 +589,17 @@ test("an impossible jump is kept for review, flagged with the reason", async () 
   assert.equal(runs[0].flagged, true);
   assert.match(runs[0].details.flag_reasons.join(" "), /late take-off/);
 });
+
+test("a golf run no real player could make is kept, flagged, with its reasons", async () => {
+  const levels = [];
+  for (let n = 1; n <= 30; n++) {
+    const holes = n <= 5 ? [5, 6, 7, 8, 9][n - 1] : Math.min(12, 9 + Math.ceil((n - 5) / 2));
+    levels.push({ level: n, holes, shots: holes, durationMs: holes * 320 + 400, livesLost: 0 });
+  }
+  const details = summaryOf(levels);
+  const res = await post(goodSubmission({ token: tokenIssuedAgo(60 * 60 * 1000), details }));
+  assert.equal(res.status, 200, "accepted, so a cheat learns nothing from the reply");
+  assert.equal(runs.length, 1);
+  assert.equal(runs[0].flagged, true);
+  assert.ok(runs[0].details.flag_reasons.length > 0);
+});
