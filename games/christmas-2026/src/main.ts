@@ -1,5 +1,5 @@
 import "./styles.css";
-import { startRun } from "../../../shared/scores";
+import { runTokens } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
 import { CHRISTMAS_LINE_M, distanceAt, GAME_ID, newJump, PHYSICS, step, timeScale, type Jump } from "../rules";
@@ -97,6 +97,7 @@ async function boot(): Promise<void> {
   let lastPhase = jump.phase;
   let acc = 0;
   /** This jump's run token, asked for as it begins so the server has its own clock on it. */
+  const tokens = runTokens(GAME_ID);
   let token: Promise<string | null> = Promise.resolve(null);
   /** Whether this jump cleared the Christmas line. */
   let christmas = false;
@@ -110,7 +111,7 @@ async function boot(): Promise<void> {
     lastPhase = jump.phase;
     acc = 0;
     resetInput();
-    token = startRun(GAME_ID);
+    token = tokens.next();
     startScreen.hidden = true;
     resultScreen.hidden = true;
     podiumScreen.hidden = true;

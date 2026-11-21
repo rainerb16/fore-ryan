@@ -571,3 +571,24 @@ test("the name is remembered for the next run", async () => {
   assert.equal(g.window.localStorage.getItem("ryanbday.name"), "Ryan B");
   assert.match(g.window.localStorage.getItem("ryanbday.player") ?? "", /^[0-9a-f-]{36}$/);
 });
+
+test("a contest run that ends before the server hands out its token can still be posted", async () => {
+  let release;
+  const slow = new Promise((r) => (release = r));
+  const api = fakeApi({
+    "/api/run-start": async () => {
+      await slow;
+      return new Response(JSON.stringify({ token: "11111111-2222-3333-4444-555555555555" }), { status: 200 });
+    },
+  });
+  const g = bootGame({ fetch: api.fetch });
+
+  await playContestRun(g);
+  assert.match(g.text("submitStatus"), /Checking in/);
+  assert.equal(g.el("submitForm").hidden, true);
+
+  release();
+  await g.settle(20);
+  assert.equal(g.el("submitForm").hidden, false, "the run can be posted once its token arrives");
+  assert.equal(g.text("submitStatus"), "");
+});

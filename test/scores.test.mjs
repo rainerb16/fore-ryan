@@ -37,7 +37,7 @@ const json = (body, status = 200) => new Response(JSON.stringify(body), { status
 function serve(routes) {
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).split("?")[0];
-    requests.push({ url: String(url), path, body: init.body && JSON.parse(init.body) });
+    requests.push({ url: String(url), path, body: init.body && JSON.parse(init.body), signal: init.signal });
     const route = routes[path];
     if (!route) throw new TypeError("fetch failed");
     return route();
@@ -183,3 +183,144 @@ test("a leaderboard error that is not an outage is surfaced, not hidden", async 
   serve({ "/api/leaderboard": () => json({ error: "Use GET" }, 405) });
   await assert.rejects(scores.getLeaderboard("birthday-2026"), /Use GET/);
 });
+
+// --- time limits --------------------------------------------------------------
+
+test("every request has a time limit, and running out keeps the run on this device", async () => {
+  serve({
+    "/api/submit-run": () => {
+      throw new DOMException("The operation timed out.", "TimeoutError");
+    },
+  });
+  const res = await scores.submitRun("birthday-2026", "t-1", run());
+  assert.equal(res.local, true);
+  assert.ok(requests[0].signal instanceof AbortSignal, "the request has no time limit");
+});
+
+test("browsers without a timeout signal (older iPhones) still post", async () => {
+  const timeout = AbortSignal.timeout;
+  delete AbortSignal.timeout;
+  try {
+    serve({ "/api/submit-run": () => json({ points: 480 }) });
+    const res = await scores.submitRun("birthday-2026", "t-1", run());
+    assert.deepEqual(res, { ok: true, points: 480 });
+  } finally {
+    AbortSignal.timeout = timeout;
+  }
+});
+
+// --- reusing run tokens ---------------------------------------------------------
+
+/**
+ * run-start handing out a new token per call. Tokens are unique per test, like
+ * the server's uuids, because the module remembers spent ones for the page's life.
+ * Returns the name of the nth token it will issue.
+ */
+let batch = 0;
+function issuing(status = 200) {
+  const prefix = `b${++batch}`;
+  let n = 0;
+  serve({
+    "/api/run-start": () => (status === 200 ? json({ token: `${prefix}-${++n}` }) : json({ error: "no" }, status)),
+    "/api/submit-run": () => json({ points: 480 }),
+  });
+  return (nth) => `${prefix}-${nth}`;
+}
+const starts = () => requests.filter((r) => r.path === "/api/run-start").length;
+
+test("a run nobody posted hands its token to the next run", async () => {
+  const t = issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  assert.equal(await tokens.next(), t(1));
+  assert.equal(await tokens.next(), t(1));
+  assert.equal(starts(), 1);
+});
+
+test("two runs started before the server answers share the one request", async () => {
+  issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const [a, b] = await Promise.all([tokens.next(), tokens.next()]);
+  assert.equal(a, b);
+  assert.equal(starts(), 1);
+});
+
+test("once a run is posted, the next run gets a fresh token", async () => {
+  const t = issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const first = await tokens.next();
+  await scores.submitRun("christmas-2026", first, run());
+  assert.equal(await tokens.next(), t(2));
+});
+
+test("a token the server says was already used is not handed out again", async () => {
+  issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const first = await tokens.next();
+  serve({
+    "/api/submit-run": () => json({ error: "That run was already submitted" }, 409),
+    "/api/run-start": () => json({ token: `${first}-next` }),
+  });
+  await scores.submitRun("christmas-2026", first, run());
+  assert.equal(await tokens.next(), `${first}-next`);
+});
+
+test("a refused or offline start is asked again, not reused", async () => {
+  issuing(429);
+  const tokens = scores.runTokens("christmas-2026");
+  assert.equal(await tokens.next(), null);
+  serve({});
+  assert.match(await tokens.next(), /^local:/);
+  const t = issuing();
+  assert.equal(await tokens.next(), t(1));
+});
+
+test("a token is not reused once it is near its time limit on the server", async () => {
+  const t = issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const now = Date.now;
+  try {
+    assert.equal(await tokens.next(), t(1));
+    Date.now = () => now() + 5 * 60 * 60 * 1000 + 1;
+    assert.equal(await tokens.next(), t(2));
+  } finally {
+    Date.now = now;
+  }
+});
+
+test("each game keeps its own tokens", async () => {
+  issuing();
+  const golf = scores.runTokens("birthday-2026");
+  const jump = scores.runTokens("christmas-2026");
+  assert.notEqual(await golf.next(), await jump.next());
+});
+
+test("a token being posted is not handed to the next run, however the post ends", async () => {
+  issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const first = await tokens.next();
+  let finish;
+  serve({
+    "/api/run-start": () => json({ token: `${first}-next` }),
+    "/api/submit-run": () => new Promise((r) => (finish = r)),
+  });
+  const posting = scores.submitRun("christmas-2026", first, run());
+  // "Jump again" while the post is still on its way.
+  assert.equal(await tokens.next(), `${first}-next`);
+  finish(json({ points: 480 }));
+  await posting;
+});
+
+test("a post that timed out may have been saved, so its token is not reused", async () => {
+  issuing();
+  const tokens = scores.runTokens("christmas-2026");
+  const first = await tokens.next();
+  serve({
+    "/api/run-start": () => json({ token: `${first}-next` }),
+    "/api/submit-run": () => {
+      throw new DOMException("The operation timed out.", "TimeoutError");
+    },
+  });
+  await scores.submitRun("christmas-2026", first, run());
+  assert.equal(await tokens.next(), `${first}-next`);
+});
+
