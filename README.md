@@ -192,7 +192,7 @@ To hide a run without deleting it, set `flagged = true` on it.
 ### Checks on every pull request
 
 `.github/workflows/check.yml` runs `npm run check` (type check, build, tests, smoke test)
-on Node 20, as Netlify builds with, for every pull request and every push to `develop` and
+on Node 24, as Netlify builds and runs the functions with, for every pull request and every push to `develop` and
 `main`. It needs no secrets. It isn't a required check yet: making it one means turning on
 branch protection for `develop` and `main` under **Settings → Branches**.
 
