@@ -1,4 +1,5 @@
 import "./styles.css";
+import { runLoop } from "../../../shared/loop";
 import { runTokens } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
@@ -88,6 +89,9 @@ async function boot(): Promise<void> {
   buildDisco($("disco"));
   const [{ createJumpView, SLEIGH_CROSSING }, head] = await Promise.all([import("./scene"), loadImage(HEAD_SRC)]);
   const view = createJumpView($<HTMLCanvasElement>("scene"), head);
+  // The scene's shaders compile in the background first: drawing straight away
+  // would compile them one by one inside that frame, freezing the page.
+  await view.compile();
   attachInput();
 
   let jump: Jump = newJump();
@@ -190,16 +194,16 @@ async function boot(): Promise<void> {
     if (to === "done") finish();
   }
 
+  // The shadow and bloom passes only compile when drawn, so draw one frame
+  // now, behind the start screen, before Start can begin a jump.
+  view.render(jump, 0, prev, 1, readLook());
+
   $("startBtn").addEventListener("click", start);
   $("againBtn").addEventListener("click", start);
   $("podiumAgainBtn").addEventListener("click", start);
   showBest();
 
-  let last = performance.now();
-  const frame = (now: number): void => {
-    const dt = Math.min((now - last) / 1000, 0.1);
-    last = now;
-
+  const frame = (_time: number, dt: number): void => {
     if (playing) {
       // Fixed steps keep every device's jump identical; slow motion just
       // feeds the simulation less time per real second.
@@ -227,9 +231,9 @@ async function boot(): Promise<void> {
 
     if (!playing) setLayers(0, 0);
     view.render(jump, dt, prev, playing ? acc / STEP : 1, readLook());
-    requestAnimationFrame(frame);
   };
-  requestAnimationFrame(frame);
+  // Behind the menus only snow falls, unless fireworks are going off.
+  runLoop(frame, view.lowPower ? { idleFps: 30, busy: () => playing || view.celebrating() } : {});
 }
 
 void boot();

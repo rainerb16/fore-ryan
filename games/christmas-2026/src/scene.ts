@@ -28,6 +28,12 @@ export interface JumpView {
   reset(): void;
   /** Fireworks over the city for `seconds`; `onBurst` hears each one, 0 near to 1 far. */
   celebrate(seconds: number, onBurst?: (far: number) => void): void;
+  /** Whether fireworks are going off. */
+  celebrating(): boolean;
+  /** Compiles the shaders in the background, so the first frame does not freeze the page. */
+  compile(): Promise<void>;
+  /** A phone or small tablet, which gets cheaper effects and a quieter frame rate. */
+  readonly lowPower: boolean;
 }
 
 /** How long, in simulation seconds after take-off, the sleigh takes to cross. */
@@ -248,5 +254,8 @@ export function createJumpView(canvas: HTMLCanvasElement, headImage: HTMLImageEl
     celebrate(seconds, onBurst) {
       fireworks.start(seconds, onBurst);
     },
+    celebrating: () => fireworks.active(),
+    compile: () => bloom.compile(),
+    lowPower,
   };
 }

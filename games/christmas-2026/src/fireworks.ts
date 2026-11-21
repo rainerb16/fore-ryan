@@ -57,6 +57,8 @@ export interface Fireworks {
   start(seconds: number, onBurst?: (far: number) => void): void;
   /** Ends the show and clears the sky. */
   stop(): void;
+  /** Whether a show is on, or shells from one are still in the sky. */
+  active(): boolean;
   /** Steps the show; the camera's position and axes (`up` is the screen's up) decide where new shells go. */
   update(dt: number, eye: Vector3, forward: Vector3, right: Vector3, up: Vector3): void;
 }
@@ -137,6 +139,7 @@ export function buildFireworks(scene: Scene, lowPower: boolean): Fireworks {
       for (const s of shells) remove(s);
       shells.length = 0;
     },
+    active: () => left > 0 || shells.length > 0,
     update(dt, eye, forward, right, up) {
       if (left > 0) {
         left -= dt;
