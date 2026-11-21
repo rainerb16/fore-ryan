@@ -40,15 +40,29 @@ const { runTotal } = await bundle("test/shared-entry.ts", "shared", "neutral");
 let tokens;
 let runs;
 let board;
+/** One-off failures to inject, by request: "insert" or "consume" → an HTTP status, or "timeout". */
+let faults;
+/** Every request the functions made, to check how they made them. */
+let requests;
 
 function installFakeDatabase() {
   tokens = new Map();
   runs = [];
   board = [];
+  faults = {};
+  requests = [];
 
   globalThis.fetch = async (url, init = {}) => {
     const path = String(url).replace(process.env.SUPABASE_URL + "/rest/v1/", "");
     const method = init.method || "GET";
+    requests.push({ method, path, signal: init.signal });
+    const kind = path === "runs" && method === "POST" ? "insert" : path.startsWith("run_tokens?") && method === "PATCH" ? "consume" : null;
+    const fault = kind && faults[kind];
+    if (fault) {
+      delete faults[kind];
+      if (fault === "timeout") throw new DOMException("The operation timed out.", "TimeoutError");
+      return new Response(JSON.stringify({ message: "upstream trouble" }), { status: fault });
+    }
     const ok = (body, headers = {}) =>
       new Response(JSON.stringify(body), { status: 200, headers });
     const idIn = (p) => decodeURIComponent(p.match(/token=eq\.([^&]+)/)[1]);
@@ -125,7 +139,12 @@ function installFakeDatabase() {
     }
 
     if (path === "runs" && method === "POST") {
-      runs.push(Object.assign(JSON.parse(init.body), { created_at: Date.now() }));
+      const row = JSON.parse(init.body);
+      // runs.run_token is unique, and PostgREST reports the violation as a 409.
+      if (runs.some((r) => r.run_token === row.run_token)) {
+        return new Response(JSON.stringify({ code: "23505", message: "duplicate key value" }), { status: 409 });
+      }
+      runs.push(Object.assign(row, { created_at: Date.now() }));
       return new Response("[]", { status: 201 });
     }
 
@@ -302,6 +321,48 @@ test("rejects a replay of an already-submitted token", async () => {
   const again = await post(body);
   assert.equal(again.status, 409);
   assert.equal(runs.length, 1, "the replay must not create a second row");
+});
+
+test("a run whose save fails can still be posted on a retry", async () => {
+  const body = goodSubmission();
+  faults.insert = 503;
+  assert.equal((await post(body)).status, 500);
+  assert.equal(tokens.get(body.token).used_at, null, "the token is not spent on a failed save");
+
+  assert.equal((await post(body)).status, 200);
+  assert.equal(runs.length, 1);
+});
+
+test("a run saved by a submission racing this one is refused as a replay", async () => {
+  const body = goodSubmission();
+  // The other submission has saved its row but not yet marked the token used.
+  runs.push({ run_token: body.token, player_id: "someone-else", created_at: Date.now() });
+  const res = await post(body);
+  assert.equal(res.status, 409);
+  assert.equal(runs.length, 1, "the replay must not create a second row");
+});
+
+test("a run that was saved counts, even if marking its token used then fails", async () => {
+  faults.consume = 503;
+  const res = await post(goodSubmission());
+  assert.equal(res.status, 200);
+  assert.equal(runs.length, 1);
+});
+
+test("stats of the wrong shape are refused, not a crash", async () => {
+  for (const details of [{ levels: "abc" }, { levels: [null] }, { levels: [{ level: "x" }] }]) {
+    const res = await post(goodSubmission({ details }));
+    assert.equal(res.status, 422, JSON.stringify(details));
+  }
+  assert.equal(runs.length, 0);
+});
+
+test("every database call has a time limit, and running out is a clean failure", async () => {
+  faults.insert = "timeout";
+  const res = await post(goodSubmission());
+  assert.equal(res.status, 500);
+  assert.ok(requests.length > 0);
+  for (const r of requests) assert.ok(r.signal instanceof AbortSignal, `${r.method} ${r.path} has no time limit`);
 });
 
 test("rejects an unknown token", async () => {
