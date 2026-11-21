@@ -1,6 +1,6 @@
 import { levelConfig } from "../../rules/rules";
 import { scoreLevel } from "../../rules/scoring";
-import { initAudio, sfx } from "../game/audio";
+import { sfx } from "../game/audio";
 import { BIRTHDAY_LIVES, GAME_ID, MODE, STATE, type GameMode } from "../game/config";
 import { bankLevel, runSummary, startRun } from "../game/progression";
 import { game } from "../game/state";
@@ -36,7 +36,6 @@ function hideOverlays(): void {
 }
 
 export function startGame(mode: GameMode): void {
-  initAudio();
   hideOverlays();
   hideBanner();
   hud.classList.remove("pregame");

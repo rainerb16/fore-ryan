@@ -37,6 +37,7 @@ On this machine the repo lives on a WSL path, so run npm inside WSL rather than 
 | `shared/scores.ts` | The scores adapter every game uses to start runs, post scores, and read standings |
 | `shared/names.ts` | Name cleaning, shared by browser and server (1–20 characters) |
 | `shared/storage.ts` | `localStorage` that never throws |
+| `shared/audio.ts` | The sound engine every page uses: starts on a tap, restarts after a phone pauses it, quiet when the page is hidden |
 | `shared/three.ts`, `shared/webgl.ts` | Renderer setup and the WebGL check for 3D pages |
 | `netlify/functions/` | The leaderboard API: token issue, submission, standings |
 | `supabase/schema.sql` | Tables, indexes, and the lockdown, run once by hand |

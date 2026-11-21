@@ -4,74 +4,28 @@
 // broken machines' sparks, steam, clunks and secrets. Kept low: it's a room,
 // not a game. Starts on the first tap or key press, so autoplay never blocks it.
 
-import { store } from "../../shared/storage";
+import { createAudio } from "../../shared/audio";
 
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
-
-const MUTE_KEY = "arcade.muted";
-/** Overall volume, under full for headroom. */
-const LEVEL = 0.7;
-
-let ctx: AudioContext | null = null;
-let master: GainNode | null = null;
-let noise: AudioBuffer | null = null;
-let muted = store.get(MUTE_KEY, "0") === "1";
+/** A faint attract-mode jingle every so often, once the sound has started. */
 let blipTimer = 0;
 
-export const isMuted = (): boolean => muted;
+const audio = createAudio({
+  muteKey: "arcade.muted",
+  level: 0.7,
+  onReady(ctx, master, noise) {
+    roomTone(ctx, master, noise);
+    scheduleBlip();
+  },
+});
+const { tone, sweep, burst } = audio;
 
-export function setMuted(on: boolean): void {
-  muted = on;
-  store.set(MUTE_KEY, on ? "1" : "0");
-  if (ctx && master) master.gain.setTargetAtTime(on ? 0 : LEVEL, ctx.currentTime, 0.03);
-  // Muted, nothing runs at all; unmuted, it starts (or resumes) on this tap.
-  if (on) void ctx?.suspend();
-  else startAudio();
-}
-
-/** Starts the audio on a user's tap or key press. Safe to call on every one. */
-export function startAudio(): void {
-  if (muted) return;
-  if (ctx) {
-    if (ctx.state === "suspended" && !document.hidden) void ctx.resume();
-    return;
-  }
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  try {
-    ctx = new AC();
-  } catch {
-    ctx = null;
-    return;
-  }
-  master = ctx.createGain();
-  master.gain.value = muted ? 0 : LEVEL;
-  // Peaks are rounded off rather than clipped (see the ski jump's audio.ts).
-  const soft = ctx.createWaveShaper();
-  const curve = new Float32Array(1024);
-  for (let i = 0; i < curve.length; i++) {
-    const x = (i / (curve.length - 1)) * 2 - 1;
-    const over = Math.abs(x) - 0.7;
-    curve[i] = over <= 0 ? x : Math.sign(x) * (0.7 + 0.3 * Math.tanh(over / 0.3));
-  }
-  soft.curve = curve;
-  soft.oversample = "2x";
-  master.connect(soft).connect(ctx.destination);
-
-  const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  noise = buffer;
-  roomTone(ctx, master);
-  scheduleBlip();
-}
+export const isMuted = audio.isMuted;
+export const setMuted = audio.setMuted;
+/** Starts the sound on every tap or key press from now on. */
+export const listenForTaps = audio.listen;
 
 /** The hum of a room full of machines: mains hum and a low, soft rumble. */
-function roomTone(c: AudioContext, out: AudioNode): void {
+function roomTone(c: AudioContext, out: AudioNode, noise: AudioBuffer): void {
   const hum = c.createOscillator();
   hum.frequency.value = 60;
   const humGain = c.createGain();
@@ -91,84 +45,14 @@ function roomTone(c: AudioContext, out: AudioNode): void {
   rumble.start();
 }
 
-// Leaving the arcade for a game, or the tab going away: silence. A page kept
-// for Back resumes when it is shown again.
-document.addEventListener("visibilitychange", () => {
-  if (!ctx) return;
-  if (document.hidden) void ctx.suspend();
-  else if (!muted) void ctx.resume();
-});
-window.addEventListener("pagehide", () => {
-  if (ctx) void ctx.suspend();
-});
-window.addEventListener("pageshow", (e) => {
-  if (ctx && e.persisted && !document.hidden && !muted) void ctx.resume();
-});
-
 function panned(pan: number): AudioNode | null {
+  const { context: ctx, master } = audio;
   if (!ctx || !master) return null;
   if (pan === 0 || !ctx.createStereoPanner) return master;
   const p = ctx.createStereoPanner();
   p.pan.value = Math.max(-1, Math.min(1, pan));
   p.connect(master);
   return p;
-}
-
-function tone(freq: number, dur: number, type: OscillatorType, when: number, vol: number, out: AudioNode | null = master): void {
-  if (!ctx || !out) return;
-  const t0 = ctx.currentTime + when;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(gain).connect(out);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
-
-function sweep(from: number, to: number, dur: number, type: OscillatorType, vol: number, when = 0, out: AudioNode | null = master): void {
-  if (!ctx || !out) return;
-  const t0 = ctx.currentTime + when;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(from, t0);
-  osc.frequency.exponentialRampToValueAtTime(to, t0 + dur);
-  gain.gain.setValueAtTime(vol, t0);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(gain).connect(out);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
-
-function burst(
-  dur: number,
-  type: BiquadFilterType,
-  freq: number,
-  vol: number,
-  opts: { when?: number; attack?: number; q?: number; out?: AudioNode | null } = {},
-): void {
-  if (!ctx || !master || !noise) return;
-  const { when = 0, attack = 0.004, q = 0.8, out = master } = opts;
-  if (!out) return;
-  const t0 = ctx.currentTime + when;
-  const source = ctx.createBufferSource();
-  source.buffer = noise;
-  source.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = type;
-  filter.frequency.value = freq;
-  filter.Q.value = q;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(vol, t0 + attack);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  source.connect(filter).connect(gain).connect(out);
-  source.start(t0, Math.random());
-  source.stop(t0 + dur + 0.05);
 }
 
 // A faint attract-mode jingle from some machine down the row, now and then.
@@ -181,7 +65,7 @@ const BLIPS = [
 function scheduleBlip(): void {
   clearTimeout(blipTimer);
   blipTimer = window.setTimeout(() => {
-    if (ctx && ctx.state === "running") {
+    if (audio.context?.state === "running") {
       const notes = BLIPS[Math.floor(Math.random() * BLIPS.length)];
       const out = panned(Math.random() * 1.6 - 0.8);
       notes.forEach((f, i) => tone(f, 0.09, "square", i * 0.085, 0.012, out));
