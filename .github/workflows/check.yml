@@ -1,0 +1,31 @@
+# Runs the whole check (type check, build, tests, smoke test) on every pull
+# request and on pushes to develop and main, so a broken test shows on the PR
+# before it merges. Node 20, as Netlify builds with. No secrets needed: the
+# API tests run against a fake database.
+
+name: Check
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run check
