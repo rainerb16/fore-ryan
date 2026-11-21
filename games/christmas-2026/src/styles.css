@@ -100,6 +100,8 @@ body {
   background: radial-gradient(circle at 50% 40%, rgba(6, 11, 30, 0.55), rgba(6, 11, 30, 0.85));
 }
 .overlay[hidden] { display: none; }
+/* Ryan dances above the results on phones; scroll rather than clip if that runs out of room. */
+#resultScreen { overflow-y: auto; justify-content: safe center; }
 
 .overlay h1, .overlay h2 { margin: 0; color: var(--gold); }
 .overlay h1 { font-size: clamp(36px, 9vw, 64px); text-shadow: 0 0 22px rgba(255, 209, 102, 0.4); }
@@ -160,6 +162,205 @@ button.link {
 button.link:hover { color: var(--snow); }
 
 .actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 16px; }
+
+/* --- Ryan the elf: a dancing cardboard standee on the result screen, wipeout or not --- */
+
+/* Built by dancer.ts. Nested movers so the moves add up: rig spins, groove sways
+   and shimmies on a 12s routine, hop bounces on the beat, and the head bobbles. */
+.dancer {
+  --tall: clamp(150px, 30vh, 280px);
+  position: relative;
+  flex-shrink: 0;
+  height: var(--tall);
+  aspect-ratio: 187 / 564;
+  perspective: 1100px;
+  pointer-events: none;
+}
+/* With room to spare, he dances big beside the results. */
+@media (min-width: 900px) {
+  .dancer {
+    --tall: min(70vh, 640px);
+    position: absolute;
+    z-index: -1; /* behind the text and buttons if a move reaches them */
+    left: max(110px, calc(50% - 540px));
+    bottom: 4vh;
+  }
+}
+/* Short landscape phones: no room above the results, so he goes beside them. */
+@media (max-height: 500px) and (min-width: 560px) {
+  .dancer {
+    --tall: 72vh;
+    position: absolute;
+    z-index: -1;
+    left: 7vw;
+    bottom: 4vh;
+  }
+}
+.dancer .rig, .dancer .groove, .dancer .hop, .dancer .part {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+}
+.dancer .rig { animation: elf-spin 12s ease-in-out infinite; }
+.dancer .groove { animation: elf-groove 12s ease-in-out infinite; }
+.dancer .hop { animation: elf-hop 0.75s ease-in-out infinite; }
+/* A bobblehead, pivoting under his chin. */
+.dancer .head {
+  transform-origin: 51% 22%;
+  animation: elf-bob 0.75s ease-in-out infinite alternate;
+}
+
+.dancer .slab, .dancer .back, .dancer .card { position: absolute; inset: 0; width: 100%; height: 100%; }
+.dancer .front { backface-visibility: hidden; }
+.dancer .back { backface-visibility: hidden; }
+.dancer .edge, .dancer .card {
+  -webkit-mask: var(--elf) center / 100% 100% no-repeat;
+  mask: var(--elf) center / 100% 100% no-repeat;
+}
+.dancer .edge { background: #5e4128; }
+.dancer .card { background: #b38b5d; transform: scaleX(-1); }
+/* The cut between head and body, overlapping a little so no gap shows. */
+.dancer .body .slab, .dancer .body .card { clip-path: inset(21.5% 0 0 0); }
+.dancer .head .slab, .dancer .head .card { clip-path: inset(0 0 77.6% 0); }
+.dancer .stamp {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  top: 40%;
+  padding: 0.3em 0;
+  border: 2px solid rgba(200, 30, 40, 0.8);
+  color: rgba(200, 30, 40, 0.85);
+  font-size: calc(var(--tall) * 0.03);
+  font-weight: 900;
+  line-height: 1.15;
+  transform: rotate(-12deg);
+}
+.dancer .shadow {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  bottom: -2.5%;
+  height: 5%;
+  background: radial-gradient(closest-side, rgba(0, 0, 0, 0.6), transparent);
+  animation: elf-shadow 0.75s ease-in-out infinite;
+}
+
+/* Groove, a spin with a big jump, a shimmy, another spin, then a wobble. */
+@keyframes elf-spin {
+  0% { transform: rotateY(0deg); }
+  7.5% { transform: rotateY(-30deg); }
+  15% { transform: rotateY(30deg); }
+  22.5% { transform: rotateY(-30deg); }
+  30% { transform: rotateY(0deg); }
+  45% { transform: rotateY(360deg); }
+  50% { transform: rotateY(400deg); }
+  55% { transform: rotateY(320deg); }
+  60% { transform: rotateY(400deg); }
+  65% { transform: rotateY(320deg); }
+  70%, 72% { transform: rotateY(360deg); }
+  84%, 100% { transform: rotateY(720deg); }
+}
+@keyframes elf-groove {
+  0%, 30% { transform: none; }
+  5% { transform: rotate(-9deg); }
+  10% { transform: rotate(9deg); }
+  15% { transform: rotate(-9deg); }
+  20% { transform: rotate(9deg); }
+  25% { transform: rotate(-9deg); }
+  37.5% { transform: translateY(-14%); }
+  45% { transform: none; }
+  50% { transform: translateX(-18%) rotate(-6deg); }
+  55% { transform: translateX(18%) rotate(6deg); }
+  60% { transform: translateX(-18%) rotate(-6deg); }
+  65% { transform: translateX(18%) rotate(6deg); }
+  70% { transform: none; }
+  78% { transform: translateY(-11%); }
+  84% { transform: none; }
+  88% { transform: rotate(-14deg); }
+  92% { transform: rotate(14deg); }
+  96% { transform: rotate(-7deg); }
+  100% { transform: none; }
+}
+/* Squashed on landing, stretched at the top. */
+@keyframes elf-hop {
+  0%, 100% { transform: scale(1.05, 0.95); }
+  50% { transform: translateY(-6%) scale(0.97, 1.03); }
+}
+@keyframes elf-bob {
+  from { transform: translateZ(1px) rotate(-11deg) scale(1.3); }
+  to { transform: translateZ(1px) rotate(11deg) scale(1.3); }
+}
+@keyframes elf-shadow {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(0.75); opacity: 0.6; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dancer .rig, .dancer .groove, .dancer .hop, .dancer .head, .dancer .shadow { animation: none; }
+}
+
+/* --- the Ryan disco ball, built by disco.ts, mirroring the dancer --- */
+
+/* --x and --y place the top of the ball; the spots circle its middle. */
+.disco {
+  --size: 84px;
+  --x: calc(100% - 92px);
+  --y: 58px;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+@media (min-width: 900px) {
+  .disco { --size: min(32vh, 270px); --x: calc(100% - max(200px, calc(50% - 450px))); --y: 7vh; }
+}
+@media (max-height: 500px) and (min-width: 560px) {
+  .disco { --size: 30vh; --x: calc(100% - 7vw - 15vh); --y: 4vh; }
+}
+/* The string, swinging from the top of the screen, with the ball on the end. */
+.disco-hang {
+  position: absolute;
+  left: var(--x);
+  top: 0;
+  height: var(--y);
+  border-left: 2px solid rgba(169, 180, 214, 0.5);
+  transform-origin: 0 0;
+  animation: disco-swing 4s ease-in-out infinite alternate;
+}
+.disco-hang canvas {
+  position: absolute;
+  top: 100%;
+  left: calc(var(--size) / -2 - 1px);
+  width: var(--size);
+  height: var(--size);
+  filter: drop-shadow(0 0 calc(var(--size) / 6) rgba(190, 210, 255, 0.45));
+}
+.disco-lights i {
+  position: absolute;
+  left: var(--x);
+  top: calc(var(--y) + var(--size) / 2);
+  width: var(--spot);
+  height: var(--spot);
+  margin: calc(var(--spot) / -2) 0 0 calc(var(--spot) / -2);
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  opacity: 0.55;
+  animation: disco-orbit 24s linear infinite;
+}
+@keyframes disco-swing {
+  from { transform: rotate(-3deg); }
+  to { transform: rotate(3deg); }
+}
+@keyframes disco-orbit {
+  from { transform: rotate(var(--angle)) translateX(var(--reach)); }
+  to { transform: rotate(calc(var(--angle) - 360deg)) translateX(var(--reach)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .disco-hang, .disco-lights i { animation: none; }
+  .disco-lights i { transform: rotate(var(--angle)) translateX(var(--reach)); }
+}
 
 /* --- posting a jump --- */
 
