@@ -5,7 +5,7 @@
 
 import { consumeToken, findToken, insertRun, recentRunCount } from "./_db";
 import { RATE_LIMIT_PER_HOUR, TOKEN_TTL_MS, WALL_CLOCK_SLACK } from "./_env";
-import { contestIsClosed, LEGACY_GAME, serverGame } from "./_games";
+import { contestIsClosed, LEGACY_GAME, serverGame, type Verdict } from "./_games";
 import { clientIp, fail, hashIp, isUuid, json } from "./_http";
 import { cleanName, MAX_NAME_LENGTH } from "../../shared/names";
 
@@ -44,7 +44,13 @@ export default async (req: Request): Promise<Response> => {
   const playerId = body.playerId;
 
   // 1. The game's rules derive the score from the details, or refuse the run.
-  const verdict = game.judge(details);
+  //    Details of the wrong shape can throw inside the rules: refused all the same.
+  let verdict: Verdict;
+  try {
+    verdict = game.judge(details);
+  } catch (err) {
+    verdict = { ok: false, reasons: [`malformed details: ${String(err).slice(0, 200)}`] };
+  }
   if (!verdict.ok) {
     console.warn("rejected run", { game: game.entry.id, displayName, reasons: verdict.reasons });
     return fail(422, "That run did not add up");
@@ -77,15 +83,12 @@ export default async (req: Request): Promise<Response> => {
       return fail(429, "Too many runs submitted in the last hour — try again shortly");
     }
 
-    // 5. Consume the token. This is atomic: if two submissions race, only one
-    //    gets the row back and the other is rejected as a replay.
-    if (!(await consumeToken(body.token))) {
-      return fail(409, "That run was already submitted");
-    }
-
     if (verdict.flagged) console.warn("flagged run", { game: game.entry.id, displayName });
 
-    await insertRun({
+    // 5. Store the run, then spend the token. Saving first means a failed save
+    //    leaves the token usable for a retry. The run's token column is unique,
+    //    so if two submissions race, the database keeps one and refuses the other.
+    const saved = await insertRun({
       game_id: game.entry.id,
       display_name: displayName,
       player_id: playerId,
@@ -100,6 +103,13 @@ export default async (req: Request): Promise<Response> => {
         claimed_points: (details as { points?: unknown }).points ?? null,
       },
     });
+    if (!saved) return fail(409, "That run was already submitted");
+
+    // The run is in, so it counts even if this fails; the unique token column
+    // still refuses a replay. (If the save timed out after the database had
+    // committed it, the player is told it was kept on their device, but it is
+    // on the board too. Rare, and nothing is counted twice.)
+    await consumeToken(body.token).catch((err) => console.error("could not mark a run token used", err));
 
     return json({ points: verdict.points });
   } catch (err) {

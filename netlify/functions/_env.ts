@@ -7,6 +7,13 @@ export function env(name: string): string {
   return value;
 }
 
+/**
+ * How long each database call may take. A submission makes up to four in a
+ * row, and Netlify stops a function after 10s, so a slow database fails cleanly
+ * well inside that, and the player's device keeps the run.
+ */
+export const DB_TIMEOUT_MS = 2000;
+
 /** How long a run token stays valid. A run left open past this cannot be submitted. */
 export const TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
 

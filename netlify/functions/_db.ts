@@ -2,12 +2,25 @@
 // so this avoids pulling a client library into the function bundle. The service
 // role key bypasses Row Level Security and must never leave the server.
 
-import { env } from "./_env";
+import { DB_TIMEOUT_MS, env } from "./_env";
+
+/** A request the database answered with an error, with Postgres's error code if it sent one. */
+class DbError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | undefined,
+  ) {
+    super(message);
+    this.name = "DbError";
+  }
+}
 
 async function rest(path: string, init: RequestInit = {}): Promise<Response> {
   const key = env("SUPABASE_SERVICE_ROLE_KEY");
   const res = await fetch(`${env("SUPABASE_URL")}/rest/v1/${path}`, {
     ...init,
+    signal: AbortSignal.timeout(DB_TIMEOUT_MS),
     headers: {
       apikey: key,
       Authorization: `Bearer ${key}`,
@@ -16,7 +29,14 @@ async function rest(path: string, init: RequestInit = {}): Promise<Response> {
     },
   });
   if (!res.ok) {
-    throw new Error(`Supabase ${init.method ?? "GET"} ${path} -> ${res.status} ${await res.text()}`);
+    const text = await res.text();
+    let code: string | undefined;
+    try {
+      code = (JSON.parse(text) as { code?: string }).code;
+    } catch {
+      // not JSON
+    }
+    throw new DbError(`Supabase ${init.method ?? "GET"} ${path} -> ${res.status} ${text}`, res.status, code);
   }
   return res;
 }
@@ -93,8 +113,21 @@ export interface RunRow extends RunColumns {
   client_meta: unknown;
 }
 
-export async function insertRun(row: RunRow): Promise<void> {
-  await rest("runs", { method: "POST", body: JSON.stringify(row) });
+/** Postgres's code for a unique constraint violation. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * Stores a run. False if a run with this token is already stored:
+ * `runs.run_token` is unique, so the database itself refuses a replay.
+ */
+export async function insertRun(row: RunRow): Promise<boolean> {
+  try {
+    await rest("runs", { method: "POST", body: JSON.stringify(row) });
+    return true;
+  } catch (err) {
+    if (err instanceof DbError && err.code === UNIQUE_VIOLATION) return false;
+    throw err;
+  }
 }
 
 /** Submissions from this player in the last hour, across all games, for rate limiting. */
