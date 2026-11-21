@@ -14,7 +14,7 @@ const dir = mkdtempSync(join(tmpdir(), "arcade-three-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 const outfile = join(dir, "three.mjs");
 await build({ entryPoints: ["test/three-entry.ts"], outfile, bundle: true, format: "esm", platform: "neutral", logLevel: "warning" });
-const { createBloom, runLoop, CONTEXT, EffectComposer, UnrealBloomPass, PerspectiveCamera, Scene } = await import(`file://${outfile}`);
+const { createBloom, runLoop, CONTEXT, unlessContextLost, EffectComposer, UnrealBloomPass, PerspectiveCamera, Scene } = await import(`file://${outfile}`);
 
 // Watch what the bloom pass is sized to, and which composer the passes go into.
 let bloomSize;
@@ -222,3 +222,18 @@ test("a frame that throws stops the loop rather than failing every frame", () =>
   assert.equal(frames, 1);
 });
 
+// --- losing the GPU mid-load ------------------------------------------------------
+
+test("work in progress when the GPU context is lost fails instead of waiting forever", async () => {
+  const canvas = new EventTarget();
+  const never = new Promise(() => {});
+  const waiting = unlessContextLost(canvas, never);
+  canvas.dispatchEvent(new Event("webglcontextlost"));
+  await assert.rejects(waiting, /lost/);
+});
+
+test("work that finishes first is unaffected by a later context loss", async () => {
+  const canvas = new EventTarget();
+  assert.equal(await unlessContextLost(canvas, Promise.resolve("done")), "done");
+  canvas.dispatchEvent(new Event("webglcontextlost")); // nothing left listening, nothing thrown
+});
