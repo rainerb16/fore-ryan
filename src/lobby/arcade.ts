@@ -30,6 +30,8 @@ export interface Arcade {
   focusGame(gameId: string): void;
   /** Goes in from the street: the door opens and the camera glides through it. */
   enter(): void;
+  /** Resolves once the shaders are compiled and the arcade can draw without freezing. */
+  ready: Promise<void>;
 }
 
 export interface ArcadeImages {
@@ -171,6 +173,15 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
     look.resize(w, h);
   });
   const look = applyLook(renderer, scene, camera, lowPower);
+  // Nothing is shown until the shaders are ready: drawing first would compile
+  // them one by one inside that frame, freezing the page for seconds. The
+  // scene's own shaders compile in the background; the shadow and bloom passes
+  // only compile when drawn, so one frame is drawn here, behind the loading sign.
+  let compiled = false;
+  const ready = look.compile().then(() => {
+    look.render();
+    compiled = true;
+  });
 
   // Each game's gameplay thumbnail, made by scripts/make-thumbnails.mjs.
   for (const cabinet of cabinets) {
@@ -344,6 +355,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
 
   const lookAt = new Vector3();
   runLoop((time, dt) => {
+    if (!compiled) return;
     room.update(time);
     cabinets.forEach((c, i) => {
       c.update(time);
@@ -423,6 +435,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
   });
 
   return {
+    ready,
     setScores(gameId, scores) {
       cabinets.find((c) => c.game?.id === gameId)?.screen?.setScores(scores);
     },

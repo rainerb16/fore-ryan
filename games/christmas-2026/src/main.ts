@@ -78,7 +78,7 @@ async function boot(): Promise<void> {
   // The podium needs no 3D, so it is there even where the jump cannot run.
   for (const id of ["startBoardBtn", "resultBoardBtn", "noWebglBoardBtn"]) $(id).addEventListener("click", () => openPodium());
 
-  if (!hasWebGL()) {
+  if (!hasWebGL($<HTMLCanvasElement>("scene"))) {
     startScreen.hidden = true;
     $("noWebgl").hidden = false;
     $("podiumAgainBtn").hidden = true;

@@ -45,6 +45,30 @@ body:not(.webgl) #controls { display: none; }
 
 body.no-webgl { overflow: auto; }
 
+/* Up while the 3D room builds. The pulse is opacity only, so it keeps going even while the page is busy. */
+#loading {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  color: var(--cyan);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-shadow: 0 0 12px rgba(54, 226, 255, 0.7);
+  animation: loading-pulse 1.2s ease-in-out infinite alternate;
+}
+body.webgl #loading, body.no-webgl #loading { display: none; }
+@keyframes loading-pulse {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #loading { animation: none; }
+}
+
 #cabinets h1 {
   margin: 32px 16px 20px;
   text-align: center;

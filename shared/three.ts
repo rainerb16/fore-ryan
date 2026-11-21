@@ -13,6 +13,7 @@ import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer
 import { OutputPass } from "three/examples/jsm/postprocessing/OutputPass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { CONTEXT } from "./webgl";
 
 /** Retina phones would otherwise render 3–4x the pixels for little visible gain. */
 export const MAX_PIXEL_RATIO = 1.5;
@@ -32,7 +33,8 @@ export function createView(
   camera: PerspectiveCamera,
   onResize?: (width: number, height: number) => void,
 ): WebGLRenderer {
-  const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+  // Same settings as hasWebGL(canvas), so the renderer reuses the context the check made.
+  const renderer = new WebGLRenderer({ canvas, ...CONTEXT });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
@@ -68,6 +70,12 @@ export function runLoop(frame: (time: number, dt: number) => void): void {
 export interface Bloom {
   render(): void;
   resize(width: number, height: number): void;
+  /**
+   * Compiles the scene's shaders in the background, in parallel where the
+   * browser can, rather than one by one inside the first frame. Resolves once
+   * they are ready, so the first frame does not freeze the page.
+   */
+  compile(): Promise<void>;
 }
 
 /**
@@ -87,6 +95,16 @@ export function createBloom(
   composer.addPass(new OutputPass());
   return {
     render: () => composer.render(),
+    async compile() {
+      // The scene is drawn into the composer's buffer, not the screen, and three
+      // builds different shaders for the two (tone mapping happens later, in
+      // OutputPass). Compile for the buffer, or the first frame compiles again.
+      const was = renderer.getRenderTarget();
+      renderer.setRenderTarget(composer.readBuffer);
+      const done = renderer.compileAsync(scene, camera);
+      renderer.setRenderTarget(was);
+      await done;
+    },
     resize(width, height) {
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(width, height);
