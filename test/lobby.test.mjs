@@ -70,3 +70,40 @@ test("a refused score request says scores are unavailable", async () => {
   await settle();
   assert.match(g.doc.querySelector(".top3").textContent, /unavailable/);
 });
+
+// --- loading ---------------------------------------------------------------------
+
+test("scores are asked for straight away, not after the 3D arcade has loaded", async () => {
+  const dom = new JSDOM(html, {
+    url: "https://fore-ryan.test/",
+    runScripts: "outside-only",
+    pretendToBeVisual: true,
+    virtualConsole: new VirtualConsole(),
+  });
+  const { window } = dom;
+  const requested = [];
+  // WebGL works, and the 3D arcade is still loading: its fonts are on their way.
+  window.HTMLCanvasElement.prototype.getContext = (kind) => (kind === "webgl2" ? {} : null);
+  Object.defineProperty(window.document, "fonts", { value: { load: () => new Promise(() => {}) } });
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  window.fetch = async (url) => {
+    requested.push(String(url));
+    return json({ top: [], mine: null, closesAt: null, closed: false });
+  };
+  window.console.warn = () => {};
+  window.eval(code);
+  await settle();
+  assert.ok(requested.some((u) => u.startsWith("/api/leaderboard")), "no scores requested while the arcade loads");
+});
+
+test("the web fonts never hold up the first paint", () => {
+  const doc = new JSDOM(html).window.document;
+  const fonts = [...doc.querySelectorAll('link[rel="stylesheet"]')].filter((l) => l.href.includes("fonts.googleapis.com"));
+  assert.equal(fonts.length, 1);
+  assert.equal(fonts[0].media, "print", "loaded as print, so it does not block rendering");
+  assert.match(fonts[0].getAttribute("onload") ?? "", /media\s*=\s*['"]all['"]/);
+  // Marked done either way, so a blocked stylesheet doesn't make the arcade wait for it.
+  assert.match(fonts[0].getAttribute("onload") ?? "", /dataset\.state\s*=\s*['"]done['"]/);
+  assert.match(fonts[0].getAttribute("onerror") ?? "", /dataset\.state\s*=\s*['"]done['"]/);
+});
+

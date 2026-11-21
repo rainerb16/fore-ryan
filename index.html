@@ -22,7 +22,9 @@
 <!-- The Action Furnace poster's brand typefaces, and the neon sign's 80s faces. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Mr+Dafoe&family=Oswald:wght@700&family=Poppins:wght@600;700&display=swap">
+<!-- Loaded as print, then switched on, so it never holds up the first paint.
+     Marked done either way, so the arcade knows not to wait for it (see fonts.ts). -->
+<link id="fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Monoton&family=Mr+Dafoe&family=Oswald:wght@700&family=Poppins:wght@600;700&display=swap" media="print" onload="this.media='all';this.dataset.state='done'" onerror="this.dataset.state='done'">
 
 <style>
   /* Inline, so the first paint is already dark rather than white. */
