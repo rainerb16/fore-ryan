@@ -1,25 +1,8 @@
 // Every sound in the jump, synthesized with WebAudio like the golf game's, so
 // there are no audio files. Two layers run the whole time and follow the jump:
 // skis hissing on the snow, and wind in flight. Everything else is a one-shot.
-// The audio context starts on the first tap of Start, so autoplay blocking
-// never trips. On iOS, the silent switch mutes it too.
 
-import { store } from "../../../shared/storage";
-
-declare global {
-  interface Window {
-    webkitAudioContext?: typeof AudioContext;
-  }
-}
-
-const MUTE_KEY = "skijump.muted";
-/** Overall volume, a little under full for headroom. */
-const LEVEL = 0.8;
-
-let ctx: AudioContext | null = null;
-let master: GainNode | null = null;
-let noise: AudioBuffer | null = null;
-let muted = store.get(MUTE_KEY, "0") === "1";
+import { createAudio } from "../../../shared/audio";
 
 /** A looping noise layer whose loudness and brightness follow the jump. */
 interface Layer {
@@ -35,14 +18,7 @@ let wind: Layer | null = null;
  */
 const buses = new Set<GainNode>();
 
-function makeNoise(c: AudioContext): AudioBuffer {
-  const buffer = c.createBuffer(1, c.sampleRate * 2, c.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  return buffer;
-}
-
-function layer(c: AudioContext, out: AudioNode, type: BiquadFilterType, q: number): Layer {
+function layer(c: AudioContext, out: AudioNode, noise: AudioBuffer, type: BiquadFilterType, q: number): Layer {
   const source = c.createBufferSource();
   source.buffer = noise;
   source.loop = true;
@@ -56,73 +32,30 @@ function layer(c: AudioContext, out: AudioNode, type: BiquadFilterType, q: numbe
   return { filter, gain };
 }
 
-/** Starts the audio on a user's tap. Safe to call on every tap. */
-export function initAudio(): void {
-  if (ctx) {
-    if (ctx.state === "suspended") void ctx.resume();
-    return;
-  }
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return;
-  try {
-    ctx = new AC();
-  } catch {
-    ctx = null;
-    return;
-  }
-  master = ctx.createGain();
-  master.gain.value = muted ? 0 : LEVEL;
-  // The levels below leave headroom, but the payoff stacks a lot up at once.
-  // A soft clipper rounds off any peak that still gets through, where hard
-  // clipping would crackle. (Not a compressor: Chrome's adds its own makeup
-  // gain, which makes the loud moments louder.)
-  const soft = ctx.createWaveShaper();
-  const curve = new Float32Array(1024);
-  for (let i = 0; i < curve.length; i++) {
-    // Untouched below 0.7; above it, eased round so it never reaches full scale.
-    const x = (i / (curve.length - 1)) * 2 - 1;
-    const over = Math.abs(x) - 0.7;
-    curve[i] = over <= 0 ? x : Math.sign(x) * (0.7 + 0.3 * Math.tanh(over / 0.3));
-  }
-  soft.curve = curve;
-  soft.oversample = "2x";
-  master.connect(soft).connect(ctx.destination);
-  noise = makeNoise(ctx);
-  hiss = layer(ctx, master, "bandpass", 0.8);
-  wind = layer(ctx, master, "lowpass", 1.2);
-}
-
-// The frame loop stops in a hidden tab, so the layers would hold their last
-// level: pause everything with the tab instead.
-document.addEventListener("visibilitychange", () => {
-  if (!ctx) return;
-  if (document.hidden) void ctx.suspend();
-  else void ctx.resume();
+const audio = createAudio({
+  muteKey: "skijump.muted",
+  level: 0.8,
+  playOnSilent: true,
+  onReady(ctx, master, noise) {
+    hiss = layer(ctx, master, noise, "bandpass", 0.8);
+    wind = layer(ctx, master, noise, "lowpass", 1.2);
+  },
+  // A song still queued is dropped: a page kept for Back, or unmuted later,
+  // would otherwise pick it up mid-phrase.
+  onStop() {
+    hush();
+    setLayers(0, 0);
+  },
 });
+const { tone, sweep, burst } = audio;
 
-// Leaving the game (back to the arcade, the Back button, or closing the tab):
-// stop everything, including a song still queued. Browsers that keep the page
-// cached for Back would otherwise carry on playing it, or resume it on return.
-window.addEventListener("pagehide", () => {
-  if (!ctx) return;
-  hush();
-  setLayers(0, 0);
-  void ctx.suspend();
-});
-window.addEventListener("pageshow", (e) => {
-  if (ctx && e.persisted && !document.hidden) void ctx.resume();
-});
-
-export const isMuted = (): boolean => muted;
-
-export function setMuted(on: boolean): void {
-  muted = on;
-  store.set(MUTE_KEY, on ? "1" : "0");
-  if (ctx && master) master.gain.setTargetAtTime(on ? 0 : LEVEL, ctx.currentTime, 0.03);
-}
+export const isMuted = audio.isMuted;
+export const setMuted = audio.setMuted;
+audio.listen();
 
 /** A fresh output for something scheduled ahead, panned if asked. */
 function bus(pan = 0): GainNode | null {
+  const { context: ctx, master } = audio;
   if (!ctx || !master) return null;
   const gain = ctx.createGain();
   if (pan !== 0 && ctx.createStereoPanner) {
@@ -138,6 +71,7 @@ function bus(pan = 0): GainNode | null {
 
 /** Silences every song and jingle still queued, for a fresh jump. */
 export function hush(): void {
+  const ctx = audio.context;
   if (!ctx) return;
   for (const gain of buses) {
     gain.gain.setTargetAtTime(0, ctx.currentTime, 0.05);
@@ -149,6 +83,7 @@ export function hush(): void {
 
 /** How loud and bright the ski hiss and the wind are right now, 0 to 1. */
 export function setLayers(skis: number, wind_: number, slow = false): void {
+  const ctx = audio.context;
   if (!ctx || !hiss || !wind) return;
   const t = ctx.currentTime;
   // Kept low: they sit under everything else.
@@ -157,64 +92,6 @@ export function setLayers(skis: number, wind_: number, slow = false): void {
   wind.gain.gain.setTargetAtTime(wind_ * 0.07, t, 0.15);
   // Slow motion deepens the wind, like a slowed-down recording.
   wind.filter.frequency.setTargetAtTime((300 + wind_ * 1400) * (slow ? 0.45 : 1), t, 0.15);
-}
-
-function tone(freq: number, dur: number, type: OscillatorType, when: number, vol: number, out: AudioNode | null = master): void {
-  if (!ctx || !out) return;
-  const t0 = ctx.currentTime + when;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, t0);
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(gain).connect(out);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
-
-/** A pitch that slides from one frequency to another: thuds and swooshes. */
-function sweep(from: number, to: number, dur: number, type: OscillatorType, vol: number, when = 0): void {
-  if (!ctx || !master) return;
-  const t0 = ctx.currentTime + when;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = type;
-  osc.frequency.setValueAtTime(from, t0);
-  osc.frequency.exponentialRampToValueAtTime(to, t0 + dur);
-  gain.gain.setValueAtTime(vol, t0);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  osc.connect(gain).connect(master);
-  osc.start(t0);
-  osc.stop(t0 + dur + 0.02);
-}
-
-/** A burst of filtered noise: crunches, cheers, fireworks. */
-function burst(
-  dur: number,
-  type: BiquadFilterType,
-  freq: number,
-  vol: number,
-  opts: { when?: number; attack?: number; q?: number; out?: AudioNode } = {},
-): void {
-  if (!ctx || !master || !noise) return;
-  const { when = 0, attack = 0.005, q = 0.8, out = master } = opts;
-  const t0 = ctx.currentTime + when;
-  const source = ctx.createBufferSource();
-  source.buffer = noise;
-  source.loop = true;
-  const filter = ctx.createBiquadFilter();
-  filter.type = type;
-  filter.frequency.value = freq;
-  filter.Q.value = q;
-  const gain = ctx.createGain();
-  gain.gain.setValueAtTime(0.0001, t0);
-  gain.gain.exponentialRampToValueAtTime(vol, t0 + attack);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  source.connect(filter).connect(gain).connect(out);
-  source.start(t0, Math.random());
-  source.stop(t0 + dur + 0.05);
 }
 
 /**
@@ -304,7 +181,6 @@ export const sfx = {
   },
   /** Santa's sleigh crossing the sky, left to right, over `seconds`. */
   sleigh(seconds: number): void {
-    if (!ctx) return;
     const left = bus(-0.7);
     const right = bus(0.7);
     if (!left || !right) return;

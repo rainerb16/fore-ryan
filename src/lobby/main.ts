@@ -2,7 +2,7 @@ import "./lobby.css";
 import { byNewest } from "../../shared/games";
 import { getLeaderboard, type LeaderboardEntry } from "../../shared/scores";
 import { hasWebGL } from "../../shared/webgl";
-import { isMuted, setMuted, startAudio } from "./audio";
+import { isMuted, listenForTaps, setMuted } from "./audio";
 import { renderList } from "./list";
 
 type ShowScores = (gameId: string, top: LeaderboardEntry[] | null) => void;
@@ -131,11 +131,7 @@ function setUpSound(): void {
     // Otherwise Enter or Space would press it again instead of reaching the arcade.
     muteBtn.blur();
   });
-  // Touch only counts as a gesture that may start audio when the finger lifts
-  // (iOS especially), so listen for the end of a touch and for clicks too.
-  for (const type of ["pointerdown", "pointerup", "touchend", "click", "keydown"] as const) {
-    window.addEventListener(type, startAudio, { capture: true });
-  }
+  listenForTaps();
 }
 
 async function boot(): Promise<void> {

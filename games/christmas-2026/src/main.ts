@@ -3,7 +3,7 @@ import { startRun } from "../../../shared/scores";
 import { store } from "../../../shared/storage";
 import { hasWebGL } from "../../../shared/webgl";
 import { CHRISTMAS_LINE_M, distanceAt, GAME_ID, newJump, PHYSICS, step, timeScale, type Jump } from "../rules";
-import { hush, initAudio, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
+import { hush, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio";
 import { armPost, loadPodium } from "./board";
 import { buildDancer } from "./dancer";
 import { buildDisco } from "./disco";
@@ -57,7 +57,6 @@ function showMute(): void {
 }
 muteBtn.addEventListener("click", () => {
   setMuted(!isMuted());
-  if (!isMuted()) initAudio();
   showMute();
   // Otherwise Space would press this button again instead of jumping.
   muteBtn.blur();
@@ -103,7 +102,6 @@ async function boot(): Promise<void> {
   let christmas = false;
 
   function start(): void {
-    initAudio();
     hush();
     christmas = false;
     jump = newJump();
