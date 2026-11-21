@@ -21,3 +21,17 @@ export function hasWebGL(canvas: HTMLCanvasElement = document.createElement("can
     return false;
   }
 }
+
+/**
+ * `work`, unless the canvas's WebGL context is lost first, in which case it
+ * fails. Three's shader compile waits on the GPU, and on a lost context it
+ * would wait forever.
+ */
+export function unlessContextLost<T>(canvas: EventTarget, work: Promise<T>): Promise<T> {
+  let onLost = (): void => undefined;
+  const lost = new Promise<never>((_, reject) => {
+    onLost = () => reject(new Error("The WebGL context was lost"));
+    canvas.addEventListener("webglcontextlost", onLost, { once: true });
+  });
+  return Promise.race([work, lost]).finally(() => canvas.removeEventListener("webglcontextlost", onLost));
+}

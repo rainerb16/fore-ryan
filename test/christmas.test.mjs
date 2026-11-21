@@ -81,3 +81,63 @@ test("with the server down the podium shows this device's jumps and says so", as
   assert.equal(doc.querySelector("#podium .place-1 .who").textContent, "Ryan");
   assert.match(doc.getElementById("boardStatus").textContent, /offline/);
 });
+
+// --- loading ------------------------------------------------------------------
+
+/**
+ * Boots the page as a browser with WebGL would: the check passes, and the jump
+ * then loads. jsdom never loads images, so Ryan's head stays on its way unless
+ * `headSettles`, which makes it fail (the jump carries on without it). The
+ * bare WebGL context then makes the renderer fail, as a broken GPU or a failed
+ * download would.
+ */
+async function bootWithWebGL({ headSettles = false } = {}) {
+  const { html, code } = loadPage("games/christmas-2026/");
+  const reloads = [];
+  const virtualConsole = new VirtualConsole();
+  virtualConsole.on("jsdomError", (e) => {
+    if (/navigation/i.test(e.message)) reloads.push(e.message);
+  });
+  const dom = new JSDOM(html, {
+    url: "https://fore-ryan.test/games/christmas-2026/",
+    runScripts: "outside-only",
+    pretendToBeVisual: true,
+    virtualConsole,
+  });
+  const { window } = dom;
+  const flat = new Proxy({}, { get: (_, p) => (p === "measureText" ? () => ({ width: 10 }) : () => ({ addColorStop() {} })), set: () => true });
+  window.HTMLCanvasElement.prototype.getContext = (kind) => (kind === "2d" ? flat : {});
+  if (headSettles) {
+    Object.defineProperty(window.HTMLImageElement.prototype, "src", {
+      set() {
+        setTimeout(() => this.onerror?.(new window.Event("error")));
+      },
+    });
+  }
+  window.requestAnimationFrame = () => 0;
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+  window.fetch = reply({ top: [], mine: null, closesAt: null, closed: false });
+  window.console.warn = () => {};
+  window.console.error = () => {};
+  window.eval(code);
+  await settle();
+  return { window, doc: window.document, reloads };
+}
+
+test("while the jump loads, Start says so instead of ignoring taps", async () => {
+  const { doc } = await bootWithWebGL();
+  const start = doc.getElementById("startBtn");
+  assert.equal(start.disabled, true);
+  assert.match(start.textContent, /Loading/);
+  assert.equal(doc.getElementById("startBoardBtn").disabled, false, "the podium is there all along");
+});
+
+test("if the jump fails to load, Start offers to try again, and does", async () => {
+  const { window, doc, reloads } = await bootWithWebGL({ headSettles: true });
+  const start = doc.getElementById("startBtn");
+  assert.equal(start.disabled, false);
+  assert.match(start.textContent, /try again/i);
+  start.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+  assert.equal(reloads.length, 1, "tapping it reloads the page");
+});
+
