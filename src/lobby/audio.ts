@@ -23,6 +23,8 @@ export const isMuted = audio.isMuted;
 export const setMuted = audio.setMuted;
 /** Starts the sound on every tap or key press from now on. */
 export const listenForTaps = audio.listen;
+/** No more sound on this page: the 3D arcade has gone. */
+export const stopSound = audio.stop;
 
 /** The hum of a room full of machines: mains hum and a low, soft rumble. */
 function roomTone(c: AudioContext, out: AudioNode, noise: AudioBuffer): void {

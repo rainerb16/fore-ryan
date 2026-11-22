@@ -45,6 +45,8 @@ export interface Audio {
   start(): void;
   /** Calls `start` on every tap and key press from now on. */
   listen(): void;
+  /** Silences it for the rest of the page, without touching the mute setting. */
+  stop(): void;
   /** A note with a quick attack and a decay. */
   tone(freq: number, dur: number, type: OscillatorType, when?: number, vol?: number, out?: AudioNode | null): void;
   /** A pitch that slides from one frequency to another: thuds and swooshes. */
@@ -79,6 +81,7 @@ export function createAudio(opts: AudioOptions): Audio {
   let master: GainNode | null = null;
   let noise: AudioBuffer | null = null;
   let muted = store.get(opts.muteKey, "0") === "1";
+  let stopped = false;
 
   // Not just "suspended": iOS parks audio as "interrupted" after a call, the
   // lock screen or a notification, and only a resume brings it back.
@@ -113,7 +116,7 @@ export function createAudio(opts: AudioOptions): Audio {
   }
 
   function start(): void {
-    if (muted || document.hidden) return;
+    if (muted || stopped || document.hidden) return;
     // A closed context can never resume, so start over with a new one.
     if (ctx?.state === "closed") ctx = master = noise = null;
     if (!ctx) build();
@@ -124,14 +127,14 @@ export function createAudio(opts: AudioOptions): Audio {
   // resumes when it is shown again.
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) suspend();
-    else if (!muted) resume();
+    else if (!muted && !stopped) resume();
   });
   window.addEventListener("pagehide", () => {
     opts.onStop?.();
     suspend();
   });
   window.addEventListener("pageshow", (e) => {
-    if (e.persisted && !document.hidden && !muted) resume();
+    if (e.persisted && !document.hidden && !muted && !stopped) resume();
   });
 
   return {
@@ -155,6 +158,10 @@ export function createAudio(opts: AudioOptions): Audio {
       }
     },
     start,
+    stop() {
+      stopped = true;
+      suspend();
+    },
     listen() {
       // Touch only counts as a gesture that may start audio when the finger
       // lifts (iOS especially), so listen for the end of a touch and clicks too.
