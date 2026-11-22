@@ -7,6 +7,7 @@ import { CatmullRomCurve3, Fog, MathUtils, PerspectiveCamera, Raycaster, Scene, 
 import type { GameEntry } from "../../shared/games";
 import { runLoop } from "../../shared/loop";
 import { createView, isLowPower, prefersReducedMotion } from "../../shared/three";
+import { watchContext } from "../../shared/webgl";
 import { buildCabinet, CABINET_WIDTH, type Cabinet, type CabinetSpec } from "./cabinet";
 import { decorateRoom } from "./festive";
 import { sprayGraffiti } from "./graffiti";
@@ -23,6 +24,8 @@ import type { Scores } from "./screen";
 const SPACING = CABINET_WIDTH + 0.26;
 const ROW_Z = WALL_Z + 0.5;
 const FOV = 55;
+/** How long to wait for a lost GPU context to come back before showing the list. */
+const GPU_WAIT_MS = 5000;
 /** Enough cabinets that the row reads as an arcade, not a lone machine. */
 const MIN_CABINETS = 5;
 
@@ -50,6 +53,8 @@ export interface ArcadeOptions {
   images: ArcadeImages;
   onFocus(focus: Focus): void;
   onLaunchStart(game: GameEntry): void;
+  /** The GPU took the 3D view away and didn't give it back: show the list instead. */
+  onGpuGone(): void;
   /** Start outside the shop front, waiting to be let in. */
   startOutside: boolean;
   /** "Click to enter" or "Tap to enter", for the sign on the door. */
@@ -77,7 +82,7 @@ const ENTER_FOR = 2.6;
 const FOG_INSIDE = { near: 5, far: 14 };
 const FOG_OUTSIDE = { near: 9, far: 40 };
 
-export function createArcade({ canvas, games, images, onFocus, onLaunchStart, startOutside, enterWords, onEntered }: ArcadeOptions): Arcade {
+export function createArcade({ canvas, games, images, onFocus, onLaunchStart, onGpuGone, startOutside, enterWords, onEntered }: ArcadeOptions): Arcade {
   const scene = new Scene();
   const camera = new PerspectiveCamera(FOV, 1, 0.1, 40);
 
@@ -197,6 +202,10 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
   let railX = xOf(playable[0]);
   /** The zoom into a game's screen: the game it's going to is fixed when it starts. */
   let launching: { game: GameEntry; from: Vector3; to: Vector3; look: Vector3; started: number } | null = null;
+  /** The WebGL context: fine, taken away by the GPU for now, or gone for good. */
+  let gpu: "ok" | "lost" | "gone" = "ok";
+  /** Whether the 3D view is live. Asks the context too: its lost event comes a moment after the loss. */
+  const live = (): boolean => gpu === "ok" && !renderer.getContext().isContextLost();
 
   function setFocus(next: number, quiet = false): void {
     const was = focus;
@@ -277,6 +286,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
   }
 
   window.addEventListener("keydown", (e) => {
+    if (!live()) return; // nothing on show to steer
     if (e.target instanceof HTMLElement && e.target.closest("a, button")) return; // let links work
     if (intro) {
       if (intro.phase === "outside" && (e.key === "Enter" || e.key === " ") && !e.repeat) {
@@ -301,6 +311,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
 
   canvas.addEventListener("pointerdown", (e) => (downAt = { x: e.clientX, y: e.clientY }));
   canvas.addEventListener("pointerup", (e) => {
+    if (!live()) return; // a still frame: nothing to tap
     if (intro) {
       // Outside: a tap anywhere goes in.
       downAt = null;
@@ -364,7 +375,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
         touchedAt = performance.now();
         // Drawing stops once a game starts loading; if that load was stopped
         // or abandoned, the page is still here, so draw it again.
-        if (!launching) loop.start();
+        if (!launching && live()) loop.start();
       },
       { capture: true, passive: true },
     );
@@ -453,12 +464,43 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
 
   setFocus(0, true);
 
+  // Phones take the GPU away under memory pressure (often after switching
+  // apps). Pause; when it comes back, redraw the reflections and recompile in
+  // the background before drawing again. If it doesn't, hand over to the list.
+  /** Counts restores, so an earlier one finishing late never restarts a later one's wait. */
+  let restores = 0;
+  watchContext(
+    canvas,
+    {
+      lost() {
+        gpu = "lost";
+        loop.stop();
+      },
+      restored() {
+        const restore = ++restores;
+        look.restoreReflections();
+        void look.compile().then(() => {
+          if (gpu !== "lost" || restore !== restores) return; // given up on, or superseded, meanwhile
+          gpu = "ok";
+          look.render();
+          loop.start();
+        });
+      },
+      gaveUp() {
+        gpu = "gone";
+        loop.stop();
+        onGpuGone();
+      },
+    },
+    GPU_WAIT_MS,
+  );
+
   // Coming back via the browser's Back button restores this page from cache,
   // mid-zoom. Start again from the rail.
   window.addEventListener("pageshow", (e) => {
     if (!e.persisted) return;
     launching = null;
-    loop.start();
+    if (live()) loop.start();
   });
 
   return {
@@ -467,6 +509,7 @@ export function createArcade({ canvas, games, images, onFocus, onLaunchStart, st
       cabinets.find((c) => c.game?.id === gameId)?.screen?.setScores(scores);
     },
     focusGame(gameId) {
+      if (!live()) return; // the list is the lobby now; no camera to move
       // Tabbing into the game list from the street steps straight inside.
       if (intro) {
         railX = xOf(playable[focus]);

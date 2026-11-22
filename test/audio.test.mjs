@@ -274,6 +274,22 @@ test("the sound is built once, when it first starts", () => {
   assert.equal(audio.context, made[0]);
 });
 
+test("stopped for good, it goes quiet and no tap brings it back", async () => {
+  const { window, made, createAudio } = bootEngine();
+  const audio = createAudio({ muteKey: "t.muted", level: 0.8 });
+  audio.listen();
+  tap(window);
+  await settle();
+  audio.stop();
+  await settle();
+  assert.equal(made[0].state, "suspended");
+  tap(window);
+  window.document.dispatchEvent(new window.Event("visibilitychange"));
+  await settle();
+  assert.equal(made[0].state, "suspended");
+  assert.equal(window.localStorage.getItem("t.muted"), null, "not remembered as the player muting it");
+});
+
 // --- the games use it --------------------------------------------------------
 
 function bootPage(page) {
