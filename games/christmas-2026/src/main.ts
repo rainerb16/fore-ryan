@@ -8,7 +8,8 @@ import { hush, isMuted, JINGLE_SECONDS, setLayers, setMuted, sfx } from "./audio
 import { armPost, loadPodium } from "./board";
 import { buildDancer } from "./dancer";
 import { buildDisco } from "./disco";
-import { attachInput, readInput, readLook, resetInput } from "./input";
+import { createStepClock } from "./clock";
+import { attachInput, inputUntil, readLook, resetInput } from "./input";
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
@@ -103,7 +104,8 @@ async function boot(): Promise<void> {
   const prev: Jump = newJump();
   let playing = false;
   let lastPhase = jump.phase;
-  let acc = 0;
+  /** Steps the simulation with real time, applying each tap at the step it happened in. */
+  const clock = createStepClock(STEP);
   /** This jump's run token, asked for as it begins so the server has its own clock on it. */
   const tokens = runTokens(GAME_ID);
   let token: Promise<string | null> = Promise.resolve(null);
@@ -117,7 +119,7 @@ async function boot(): Promise<void> {
     Object.assign(prev, jump);
     view.reset();
     lastPhase = jump.phase;
-    acc = 0;
+    clock.reset();
     resetInput();
     token = tokens.next();
     startScreen.hidden = true;
@@ -206,20 +208,22 @@ async function boot(): Promise<void> {
   $("podiumAgainBtn").addEventListener("click", start);
   showBest();
 
-  const frame = (_time: number, dt: number): void => {
+  const frame = (time: number, dt: number): void => {
     if (playing) {
       // Fixed steps keep every device's jump identical; slow motion just
       // feeds the simulation less time per real second.
-      acc += dt * timeScale(jump);
-      while (acc >= STEP) {
-        Object.assign(prev, jump);
-        step(jump, readInput(), STEP);
-        acc -= STEP;
-        if (jump.phase !== lastPhase) {
-          onPhase(lastPhase, jump.phase);
-          lastPhase = jump.phase;
-        }
-      }
+      clock.advance(
+        time * 1000,
+        (endMs) => {
+          Object.assign(prev, jump);
+          step(jump, inputUntil(endMs), STEP);
+          if (jump.phase !== lastPhase) {
+            onPhase(lastPhase, jump.phase);
+            lastPhase = jump.phase;
+          }
+        },
+        () => timeScale(jump),
+      );
       // Skis hiss on the inrun and the outrun; the wind picks up in flight, more when leaning in.
       const air = Math.hypot(jump.vx, jump.vy);
       if (jump.phase === "inrun") setLayers(Math.min(1, jump.speed / 26), Math.min(1, jump.speed / 26) * 0.25);
@@ -233,7 +237,7 @@ async function boot(): Promise<void> {
     }
 
     if (!playing) setLayers(0, 0);
-    view.render(jump, dt, prev, playing ? acc / STEP : 1, readLook());
+    view.render(jump, dt, prev, playing ? clock.blend : 1, readLook());
   };
   // Behind the menus only snow falls, unless fireworks are going off.
   runLoop(frame, view.lowPower ? { idleFps: 30, busy: () => playing || view.celebrating() } : {});

@@ -2,7 +2,7 @@
 // from one bundle, and a test can watch those classes.
 export { createBloom } from "../shared/three";
 export { runLoop } from "../shared/loop";
-export { CONTEXT, unlessContextLost } from "../shared/webgl";
+export { CONTEXT, unlessContextLost, watchContext } from "../shared/webgl";
 export { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
 export { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 export { PerspectiveCamera, Scene } from "three";

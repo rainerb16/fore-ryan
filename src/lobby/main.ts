@@ -2,7 +2,7 @@ import "./lobby.css";
 import { byNewest } from "../../shared/games";
 import { getLeaderboard, type LeaderboardEntry } from "../../shared/scores";
 import { hasWebGL } from "../../shared/webgl";
-import { isMuted, listenForTaps, setMuted } from "./audio";
+import { isMuted, listenForTaps, setMuted, stopSound } from "./audio";
 import { webFonts } from "./fonts";
 import { renderList } from "./list";
 
@@ -11,6 +11,8 @@ type ShowScores = (gameId: string, top: LeaderboardEntry[] | null) => void;
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 const games = byNewest();
+/** The GPU took the 3D arcade away for good, and the list took over. */
+let gpuGone = false;
 const setListScores = renderList(games);
 
 function loadImage(src: string): Promise<HTMLImageElement | null> {
@@ -69,6 +71,15 @@ async function start3d(): Promise<ShowScores> {
 
   const arcade = createArcade({
     canvas: $<HTMLCanvasElement>("arcade"),
+    onGpuGone() {
+      // The list every device without 3D gets, scores already in, and no
+      // sound from a room that is no longer on screen.
+      gpuGone = true;
+      fade.classList.remove("on");
+      document.body.classList.remove("webgl", "outside");
+      document.body.classList.add("no-webgl");
+      stopSound();
+    },
     startOutside,
     enterWords,
     onEntered() {
@@ -147,8 +158,12 @@ async function boot(): Promise<void> {
   if (hasWebGL($<HTMLCanvasElement>("arcade"))) {
     try {
       showOnScreens = await start3d();
-      document.body.classList.add("webgl");
-      setUpSound();
+      // Lost while loading, and the list has taken over: don't bring a still frame back.
+      if (gpuGone) showOnScreens = null;
+      else {
+        document.body.classList.add("webgl");
+        setUpSound();
+      }
     } catch (err) {
       console.error("The 3D arcade failed to start; showing the list instead.", err);
     }

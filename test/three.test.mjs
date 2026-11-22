@@ -14,7 +14,7 @@ const dir = mkdtempSync(join(tmpdir(), "arcade-three-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 const outfile = join(dir, "three.mjs");
 await build({ entryPoints: ["test/three-entry.ts"], outfile, bundle: true, format: "esm", platform: "neutral", logLevel: "warning" });
-const { createBloom, runLoop, CONTEXT, unlessContextLost, EffectComposer, UnrealBloomPass, PerspectiveCamera, Scene } = await import(`file://${outfile}`);
+const { createBloom, runLoop, CONTEXT, unlessContextLost, watchContext, EffectComposer, UnrealBloomPass, PerspectiveCamera, Scene } = await import(`file://${outfile}`);
 
 // Watch what the bloom pass is sized to, and which composer the passes go into.
 let bloomSize;
@@ -236,4 +236,72 @@ test("work that finishes first is unaffected by a later context loss", async () 
   const canvas = new EventTarget();
   assert.equal(await unlessContextLost(canvas, Promise.resolve("done")), "done");
   canvas.dispatchEvent(new Event("webglcontextlost")); // nothing left listening, nothing thrown
+});
+
+// --- watching for the context coming back -------------------------------------------
+
+function watched(waitMs = 60) {
+  const canvas = new EventTarget();
+  const seen = [];
+  const stop = watchContext(
+    canvas,
+    { lost: () => seen.push("lost"), restored: () => seen.push("restored"), gaveUp: () => seen.push("gaveUp") },
+    waitMs,
+  );
+  const fire = (type) => canvas.dispatchEvent(new Event(`webglcontext${type}`));
+  return { seen, fire, stop };
+}
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+test("losing the context says so straight away", () => {
+  const { seen, fire, stop } = watched();
+  fire("lost");
+  assert.deepEqual(seen, ["lost"]);
+  stop();
+});
+
+test("a context that comes back in time is restored, and not given up on", async () => {
+  const { seen, fire } = watched();
+  fire("lost");
+  fire("restored");
+  await wait(200);
+  assert.deepEqual(seen, ["lost", "restored"]);
+});
+
+test("a context that does not come back is given up on after the wait", async () => {
+  const { seen, fire } = watched();
+  fire("lost");
+  await wait(200);
+  assert.deepEqual(seen, ["lost", "gaveUp"]);
+});
+
+test("once given up on, a late return is ignored", async () => {
+  const { seen, fire } = watched();
+  fire("lost");
+  await wait(200);
+  fire("restored");
+  fire("lost");
+  assert.deepEqual(seen, ["lost", "gaveUp"]);
+});
+
+test("it can be lost and restored more than once", async () => {
+  const { seen, fire } = watched();
+  fire("lost");
+  fire("restored");
+  fire("lost");
+  fire("restored");
+  await wait(200);
+  assert.deepEqual(seen, ["lost", "restored", "lost", "restored"]);
+});
+
+test("a second loss waits the full time again", async () => {
+  const { seen, fire } = watched();
+  fire("lost");
+  await wait(40);
+  fire("restored");
+  fire("lost");
+  await wait(40);
+  assert.deepEqual(seen, ["lost", "restored", "lost"], "40ms into the second wait, not given up yet");
+  await wait(200);
+  assert.deepEqual(seen, ["lost", "restored", "lost", "gaveUp"]);
 });

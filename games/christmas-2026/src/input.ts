@@ -1,10 +1,34 @@
 // One button, however it is pressed: mouse, touch, pen, or the space bar.
-// The simulation reads `pressed` (went down since last read) and `held`.
+// Each press is kept with the moment it happened, so the simulation can apply
+// it at the step it falls in (see clock.ts); `held` is whether it is down now.
 // While a pointer is held, dragging it also steers the camera (see `readLook`).
 
 import type { Input } from "../rules";
 
-let pressed = false;
+export interface PressQueue {
+  /** A press that happened at `at` ms, on the frame clock. */
+  add(at: number): void;
+  /** Whether a press not yet taken happened by `endMs`, taking it (several count as one). */
+  takeBy(endMs: number): boolean;
+  clear(): void;
+}
+
+/** Presses waiting for the simulation step they happened in. */
+export function createPressQueue(): PressQueue {
+  let pending: number[] = [];
+  return {
+    add: (at) => void pending.push(at),
+    takeBy(endMs) {
+      if (pending.length === 0) return false;
+      const before = pending.length;
+      pending = pending.filter((at) => at > endMs);
+      return pending.length < before;
+    },
+    clear: () => void (pending = []),
+  };
+}
+
+const presses = createPressQueue();
 let held = false;
 /** The pointers holding the jump down. UI taps aren't in here, so they can't end a hold. */
 const pointers = new Set<number>();
@@ -17,8 +41,17 @@ const look = { x: 0, y: 0 };
 const isUi = (target: EventTarget | null): boolean =>
   target instanceof Element && target.closest("button, a, input, .overlay") !== null;
 
-function down(): void {
-  if (!held) pressed = true;
+/**
+ * When an event happened, on the same clock as animation frames. Its own
+ * timestamp is exact; one that is missing or off that clock gives way to now.
+ */
+function stamp(e: Event): number {
+  const now = performance.now();
+  return e.timeStamp > 0 && Math.abs(now - e.timeStamp) < 1000 ? e.timeStamp : now;
+}
+
+function down(at: number): void {
+  if (!held) presses.add(at);
   held = true;
 }
 
@@ -30,7 +63,7 @@ export function attachInput(): void {
   window.addEventListener("pointerdown", (e) => {
     if (isUi(e.target)) return;
     pointers.add(e.pointerId);
-    down();
+    down(stamp(e));
     if (dragId === null) {
       dragId = e.pointerId;
       dragStart.x = e.clientX;
@@ -54,7 +87,7 @@ export function attachInput(): void {
   window.addEventListener("keydown", (e) => {
     if (e.key !== " " || isUi(e.target)) return;
     e.preventDefault();
-    if (!e.repeat) down();
+    if (!e.repeat) down(stamp(e));
   });
   window.addEventListener("keyup", (e) => {
     if (e.key === " ") up();
@@ -82,14 +115,15 @@ export function readLook(): Readonly<{ x: number; y: number }> {
   return look;
 }
 
-/** The current input, clearing the one-shot press. */
-export function readInput(): Input {
-  const now = { pressed, held };
-  pressed = false;
-  return now;
+/**
+ * The input for a simulation step ending at `endMs`: pressed if a press not
+ * yet taken happened by then, which takes it.
+ */
+export function inputUntil(endMs: number): Input {
+  return { pressed: presses.takeBy(endMs), held };
 }
 
 /** Forget any press made before play started (e.g. the tap on Start). */
 export function resetInput(): void {
-  pressed = false;
+  presses.clear();
 }
